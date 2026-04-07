@@ -323,7 +323,7 @@
             background: white;
             border-radius: 24px;
             padding: 2rem;
-            max-width: 700px;
+            max-width: 800px;
             width: 100%;
             max-height: 85vh;
             overflow-y: auto;
@@ -347,7 +347,7 @@
         }
         
         .chart-container-horizontal {
-            height: 350px;
+            height: 400px;
             position: relative;
         }
         
@@ -477,6 +477,7 @@
             .scorecard-value { font-size: 1.5rem; }
             .oee-value { font-size: 1.5rem; }
             .btn { padding: 0.5rem 1rem; font-size: 12px; }
+            .chart-container-horizontal { height: 300px; }
         }
         
         .flex { display: flex; }
@@ -548,6 +549,8 @@
         [data-theme="dark"] .bg-orange-50 { background: #7c2d12; }
         .bg-yellow-50 { background: #fefce8; }
         [data-theme="dark"] .bg-yellow-50 { background: #713f12; }
+        .bg-purple-50 { background: #faf5ff; }
+        [data-theme="dark"] .bg-purple-50 { background: #4c1d95; }
         .bg-gradient-to-r { background-image: linear-gradient(to right, var(--tw-gradient-stops)); }
         .from-blue-50 { --tw-gradient-from: #eff6ff; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(239,246,255,0)); }
         .to-purple-50 { --tw-gradient-to: #faf5ff; }
@@ -570,6 +573,7 @@
         .border-orange-300 { border-color: #fdba74; }
         .border-yellow-400 { border-color: #facc15; }
         .border-red-300 { border-color: #fca5a5; }
+        .border-purple-300 { border-color: #d8b4fe; }
         .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .overflow-x-auto { overflow-x: auto; }
         .hover\:scale-105:hover { transform: scale(1.05); }
@@ -604,7 +608,7 @@
         Q_TARGET: 99,
         A365_TARGET: 60,
         MANAGEMENT_PASSWORD: 'admin123',
-        WR_REQUIRED_MINUTES: 180 // Minimal durasi untuk wajib isi No WR
+        WR_REQUIRED_MINUTES: 180
     };
     
     const KODE_TKL = {
@@ -628,9 +632,9 @@
     
     // ==================== LOCAL STORAGE ====================
     const STORAGE_KEYS = {
-        MACHINES: 'oee_machines_v4',
-        LIBRARY: 'oee_library_v4',
-        OEE_RECORDS: 'oee_records_v4'
+        MACHINES: 'oee_machines_v5',
+        LIBRARY: 'oee_library_v5',
+        OEE_RECORDS: 'oee_records_v5'
     };
     
     // ==================== STATE ====================
@@ -641,8 +645,8 @@
     let chartInstances = {};
     let isManagementUnlocked = false;
     
-    // State untuk Input TKL - sekarang dengan detail tambahan
-    let kegiatanList = []; // setiap item: { dari, jam, kode, kegiatan, durasi, problem, action, no_wr, isExceed }
+    // State untuk Input TKL
+    let kegiatanList = [];
     let batches = [];
     let selectedDate = new Date().toISOString().split('T')[0];
     let selectedShift = '';
@@ -725,7 +729,7 @@
     function isTimeGreater(t1, t2) { if (!t1 || !t2) return false; const [h1,m1] = t1.split(':').map(Number); const [h2,m2] = t2.split(':').map(Number); return h1 > h2 || (h1 === h2 && m1 > m2); }
     function hitungDurasi(dari, sampai) { if (!dari || !sampai) return 0; const [h1,m1] = dari.split(':').map(Number); const [h2,m2] = sampai.split(':').map(Number); return (h2*60+m2) - (h1*60+m1); }
     
-    // ==================== PERHITUNGAN YANG BENAR ====================
+    // ==================== PERHITUNGAN ====================
     function hitungResume(kegiatanList, machineId) {
         let totalODT = 0;
         let totalRunning = 0;
@@ -766,7 +770,6 @@
                         problem: k.problem || '',
                         action: k.action || ''
                     });
-                    // Tandai kegiatan ini sebagai exceed
                     k.isExceed = true;
                     k.exceedDuration = exceed;
                 } else {
@@ -805,6 +808,75 @@
         };
     }
     
+    // ==================== FUNGSI UNTUK TOP 10 CHARTS ====================
+    function getODTTop10(records) {
+        const odtStats = {};
+        records.forEach(record => {
+            if (record.odt_data && record.odt_data.length) {
+                record.odt_data.forEach(odt => {
+                    if (odt.checked) {
+                        const actual = parseFloat(odt.actualTime) || 0;
+                        const standard = parseFloat(odt.standardTime) || 0;
+                        const used = Math.min(actual, standard);
+                        if (used > 0) {
+                            if (!odtStats[odt.name]) odtStats[odt.name] = 0;
+                            odtStats[odt.name] += used;
+                        }
+                    }
+                });
+            }
+        });
+        return Object.entries(odtStats).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);
+    }
+    
+    function getLineStopMesinTop10(records) {
+        const lsmStats = {};
+        records.forEach(record => {
+            if (record.line_stop_mesin_data && record.line_stop_mesin_data.length) {
+                record.line_stop_mesin_data.forEach(ls => {
+                    const dur = parseFloat(ls.duration) || 0;
+                    if (dur > 0) {
+                        if (!lsmStats[ls.item]) lsmStats[ls.item] = 0;
+                        lsmStats[ls.item] += dur;
+                    }
+                });
+            }
+        });
+        return Object.entries(lsmStats).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);
+    }
+    
+    function getLineStopNonMesinTop10(records) {
+        const lsnStats = {};
+        records.forEach(record => {
+            if (record.line_stop_non_mesin_data && record.line_stop_non_mesin_data.length) {
+                record.line_stop_non_mesin_data.forEach(ls => {
+                    const dur = parseFloat(ls.duration) || 0;
+                    if (dur > 0) {
+                        if (!lsnStats[ls.item]) lsnStats[ls.item] = 0;
+                        lsnStats[ls.item] += dur;
+                    }
+                });
+            }
+        });
+        return Object.entries(lsnStats).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);
+    }
+    
+    function getMinorStopTop10(records) {
+        const msStats = {};
+        records.forEach(record => {
+            if (record.minor_stop_data && record.minor_stop_data.length) {
+                record.minor_stop_data.forEach(ms => {
+                    const freq = parseFloat(ms.frequency) || 0;
+                    if (freq > 0) {
+                        if (!msStats[ms.item]) msStats[ms.item] = 0;
+                        msStats[ms.item] += freq;
+                    }
+                });
+            }
+        });
+        return Object.entries(msStats).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);
+    }
+    
     // ==================== LOAD DATA ====================
     function loadFromStorage() {
         const storedMachines = localStorage.getItem(STORAGE_KEYS.MACHINES);
@@ -812,9 +884,9 @@
             allMachines = JSON.parse(storedMachines);
         } else {
             allMachines = [
-                { id: '1', machine_name: 'INJEKSI 1', target_per_minute: 2.5, pic: 'BUDI', activities: {} },
-                { id: '2', machine_name: 'INJEKSI 2', target_per_minute: 2.3, pic: 'ANDRE', activities: {} },
-                { id: '3', machine_name: 'ASSY LINE A', target_per_minute: 1.8, pic: 'SUSAN', activities: {} }
+                { id: '1', machine_name: 'INJEKSI 1', target_per_minute: 2.5, pic: 'BUDI', activities: {}, minor_stop_items: [] },
+                { id: '2', machine_name: 'INJEKSI 2', target_per_minute: 2.3, pic: 'ANDRE', activities: {}, minor_stop_items: [] },
+                { id: '3', machine_name: 'ASSY LINE A', target_per_minute: 1.8, pic: 'SUSAN', activities: {}, minor_stop_items: [] }
             ];
             saveToStorage();
         }
@@ -991,6 +1063,56 @@
         chartInstances = {};
     }
     
+    function renderTop10Charts() {
+        const records = getFilteredRecords();
+        
+        setTimeout(() => {
+            // ODT Top 10
+            const odtCtx = document.getElementById('chart-odt-top10');
+            if (odtCtx) {
+                const odtData = getODTTop10(records);
+                chartInstances.odtTop10 = new Chart(odtCtx, {
+                    type: 'bar',
+                    data: { labels: odtData.map(d => d.name.length > 25 ? d.name.substring(0, 22) + '...' : d.name), datasets: [{ label: 'Total Durasi (menit)', data: odtData.map(d => d.total), backgroundColor: '#f59e0b' }] },
+                    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw.toFixed(1)} menit` } } } }
+                });
+            }
+            
+            // Line Stop Mesin Top 10
+            const lsmCtx = document.getElementById('chart-lsm-top10');
+            if (lsmCtx) {
+                const lsmData = getLineStopMesinTop10(records);
+                chartInstances.lsmTop10 = new Chart(lsmCtx, {
+                    type: 'bar',
+                    data: { labels: lsmData.map(d => d.name.length > 25 ? d.name.substring(0, 22) + '...' : d.name), datasets: [{ label: 'Total Durasi (menit)', data: lsmData.map(d => d.total), backgroundColor: '#ef4444' }] },
+                    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw.toFixed(1)} menit` } } } }
+                });
+            }
+            
+            // Line Stop Non Mesin Top 10
+            const lsnCtx = document.getElementById('chart-lsn-top10');
+            if (lsnCtx) {
+                const lsnData = getLineStopNonMesinTop10(records);
+                chartInstances.lsnTop10 = new Chart(lsnCtx, {
+                    type: 'bar',
+                    data: { labels: lsnData.map(d => d.name.length > 25 ? d.name.substring(0, 22) + '...' : d.name), datasets: [{ label: 'Total Durasi (menit)', data: lsnData.map(d => d.total), backgroundColor: '#f97316' }] },
+                    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw.toFixed(1)} menit` } } } }
+                });
+            }
+            
+            // Minor Stop Top 10
+            const msCtx = document.getElementById('chart-ms-top10');
+            if (msCtx) {
+                const msData = getMinorStopTop10(records);
+                chartInstances.msTop10 = new Chart(msCtx, {
+                    type: 'bar',
+                    data: { labels: msData.map(d => d.name.length > 25 ? d.name.substring(0, 22) + '...' : d.name), datasets: [{ label: 'Total Frekuensi (kali)', data: msData.map(d => d.total), backgroundColor: '#8b5cf6' }] },
+                    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw} kali` } } } }
+                });
+            }
+        }, 100);
+    }
+    
     function renderCharts() {
         const records = getFilteredRecords();
         destroyAllCharts();
@@ -1035,6 +1157,8 @@
                     options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, max: 100 } } }
                 });
             }
+            
+            renderTop10Charts();
         }, 100);
     }
     
@@ -1050,7 +1174,7 @@
                     const used = Math.min(actual, standard);
                     totalODT += used;
                     const exceed = actual > standard ? actual - standard : 0;
-                    odtItemsHTML += `<div class="detail-item"><div class="detail-item-label">${odt.name}</div><div class="detail-item-value">${used.toFixed(1)} menit (Standar: ${standard} menit)</div>${exceed > 0 ? `<div style="color: #f59e0b; font-size: 12px; margin-top: 4px;">⚠️ Exceed: +${exceed.toFixed(1)} menit (masuk LSNM)</div>` : ''}</div>`;
+                    odtItemsHTML += `<div class="detail-item"><div class="detail-item-label">${odt.name}</div><div class="detail-item-value">${used.toFixed(1)} menit (Standar: ${standard} menit)</div>${exceed > 0 ? `<div style="color: #f59e0b; font-size: 12px; margin-top: 4px;">⚠️ Exceed: +${exceed.toFixed(1)} menit (masuk LSNM)</div>` : ''}${odt.problem ? `<div class="text-xs text-gray-500 mt-1">⚠️ Problem: ${odt.problem}</div>` : ''}${odt.action ? `<div class="text-xs text-gray-500 mt-1">🔧 Action: ${odt.action}</div>` : ''}</div>`;
                 }
             });
         }
@@ -1089,7 +1213,7 @@
         let msItemsHTML = '';
         if (record.minor_stop_data && record.minor_stop_data.length) {
             record.minor_stop_data.forEach(ms => {
-                msItemsHTML += `<div class="detail-item"><div class="detail-item-label">${ms.item}</div><div class="detail-item-value">${ms.frequency} kali</div></div>`;
+                msItemsHTML += `<div class="detail-item"><div class="detail-item-label">${ms.item}</div><div class="detail-item-value">${ms.frequency} kali</div>${ms.problem ? `<div class="text-xs text-gray-500 mt-1">⚠️ Problem: ${ms.problem}</div>` : ''}${ms.action ? `<div class="text-xs text-gray-500 mt-1">🔧 Action: ${ms.action}</div>` : ''}</div>`;
             });
         }
         
@@ -1173,6 +1297,13 @@
                     <div class="card"><div class="card-header">👨‍🔧 Operator Performance (OEE)</div><div class="chart-container-horizontal"><canvas id="chart-operator"></canvas></div></div>
                 </div>
                 
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card"><div class="card-header">📊 ODT Top 10 (Kode 1,5,6,7,8)</div><div class="chart-container-horizontal"><canvas id="chart-odt-top10"></canvas></div></div>
+                    <div class="card"><div class="card-header">🔧 Line Stop Mesin Top 10 (Kode 3)</div><div class="chart-container-horizontal"><canvas id="chart-lsm-top10"></canvas></div></div>
+                    <div class="card"><div class="card-header">⚠️ Line Stop Non Mesin Top 10</div><div class="chart-container-horizontal"><canvas id="chart-lsn-top10"></canvas></div></div>
+                    <div class="card"><div class="card-header">⏸️ Minor Stop Top 10</div><div class="chart-container-horizontal"><canvas id="chart-ms-top10"></canvas></div></div>
+                </div>
+                
                 <div class="card">
                     <div class="card-header">📋 OEE History <span class="text-xs">(Klik baris untuk detail)</span></div>
                     <div class="table-wrapper">
@@ -1246,6 +1377,7 @@
                         ${kegiatanList.length === 0 ? '<div class="text-center py-8 bg-gray-50 rounded-lg"><p class="text-gray-400">BELUM ADA KEGIATAN</p></div>' : kegiatanList.map((k, i) => {
                             const durasi = hitungDurasi(k.dari, k.jam);
                             const isLSM = k.kode === 3;
+                            const isLSNM = k.kode === 9;
                             const isODTWithExceed = [1,5,7,8].includes(k.kode) && k.isExceed;
                             
                             return `<div class="timeline-card">
@@ -1257,8 +1389,8 @@
                                     ${isLSM && k.no_wr ? `<div class="text-xs text-blue-600 mt-1">📋 No WR: ${k.no_wr}</div>` : ''}
                                     ${isLSM && k.problem ? `<div class="text-xs text-orange-600 mt-1">⚠️ Problem: ${k.problem}</div>` : ''}
                                     ${isLSM && k.action ? `<div class="text-xs text-green-600 mt-1">🔧 Action: ${k.action}</div>` : ''}
-                                    ${!isLSM && k.kode === 9 && k.problem ? `<div class="text-xs text-orange-600 mt-1">⚠️ Problem: ${k.problem}</div>` : ''}
-                                    ${!isLSM && k.kode === 9 && k.action ? `<div class="text-xs text-green-600 mt-1">🔧 Action: ${k.action}</div>` : ''}
+                                    ${isLSNM && k.problem ? `<div class="text-xs text-orange-600 mt-1">⚠️ Problem: ${k.problem}</div>` : ''}
+                                    ${isLSNM && k.action ? `<div class="text-xs text-green-600 mt-1">🔧 Action: ${k.action}</div>` : ''}
                                     ${isODTWithExceed && k.problem ? `<div class="text-xs text-orange-600 mt-1">⚠️ Problem (Exceed): ${k.problem}</div>` : ''}
                                     ${isODTWithExceed && k.action ? `<div class="text-xs text-green-600 mt-1">🔧 Action (Exceed): ${k.action}</div>` : ''}
                                     ${k.isExceed ? `<div class="text-xs text-red-500 mt-1">⚠️ Melebihi standar! Kelebihan ${k.exceedDuration} menit masuk LSNM</div>` : ''}
@@ -1286,6 +1418,20 @@
                     <div id="batch-container" class="space-y-3 mb-4">${batches.map((b, i) => `<div class="flex gap-3 p-4 bg-gray-50 rounded-xl"><input type="text" class="input-field flex-1" value="${b.batch || ''}" placeholder="NO. BATCH" onchange="window.updateBatch(${i}, 'batch', this.value)"><input type="number" class="input-field w-32" value="${b.good || 0}" placeholder="GOOD" onchange="window.updateBatch(${i}, 'good', this.value)"><input type="number" class="input-field w-32" value="${b.reject || 0}" placeholder="REJECT" onchange="window.updateBatch(${i}, 'reject', this.value)"><button class="btn btn-secondary" onclick="window.hapusBatch(${i})"><i class="fas fa-trash"></i></button></div>`).join('')}</div>
                     <button class="btn btn-secondary w-full" onclick="window.tambahBatch()"><i class="fas fa-plus"></i> TAMBAH BATCH</button>
                     <div class="grid grid-cols-2 gap-4 mt-4"><div class="bg-blue-50 p-4 rounded-xl text-center"><div class="text-xs text-blue-600">TOTAL GOOD</div><div class="text-2xl font-bold text-blue-700" id="total-good">${batches.reduce((s,b)=>s+(Number(b.good)||0),0)}</div></div><div class="bg-red-50 p-4 rounded-xl text-center"><div class="text-xs text-red-600">TOTAL REJECT</div><div class="text-2xl font-bold text-red-700" id="total-reject">${batches.reduce((s,b)=>s+(Number(b.reject)||0),0)}</div></div></div>
+                </div>
+                
+                <div class="card"><h3 class="font-bold mb-4">⏸️ MINOR STOP</h3>
+                    <div id="minor-stop-container" class="space-y-3 mb-4">
+                        ${(() => {
+                            const mesin = allMachines.find(m => m.id === selectedMachineId);
+                            const minorStopItems = mesin?.minor_stop_items || [];
+                            if (minorStopItems.length === 0) {
+                                return '<div class="text-center py-4 text-gray-400">Belum ada data minor stop. Atur di MANAGEMENT > Edit Mesin > Minor Stop</div>';
+                            }
+                            return minorStopItems.map((item, i) => `<div class="flex gap-3 p-4 bg-gray-50 rounded-xl items-center"><div class="flex-1"><span class="font-medium">${item}</span></div><input type="number" class="input-field w-32" id="minor-stop-${i}" value="0" placeholder="Frekuensi" min="0"><textarea class="input-field flex-1" id="minor-problem-${i}" rows="1" placeholder="Problem..."></textarea><textarea class="input-field flex-1" id="minor-action-${i}" rows="1" placeholder="Action..."></textarea></div>`).join('');
+                        })()}
+                    </div>
+                    <button class="btn btn-secondary w-full" onclick="window.tambahMinorStop()" ${!selectedMachineId ? 'disabled' : ''}><i class="fas fa-plus"></i> TAMBAH MINOR STOP (Custom)</button>
                 </div>
                 
                 <div class="card bg-gradient-to-r from-blue-50 to-purple-50">
@@ -1332,11 +1478,12 @@
                 
                 <div class="card"><div class="flex justify-between mb-4"><h2 class="text-xl font-bold">🏭 DAFTAR MESIN</h2><button class="btn btn-primary" onclick="window.showTambahMesinModal()">➕ TAMBAH MESIN</button></div>
                     <div class="table-wrapper"> 
-                        <table> <thead> <tr><th>Nama Mesin</th><th>Target/Min</th><th>PIC</th><th>Kegiatan</th><th>Aksi</th> </thead> <tbody> ${allMachines.map(m => `<tr>
+                        <table> <thead> <tr><th>Nama Mesin</th><th>Target/Min</th><th>PIC</th><th>Kegiatan</th><th>Minor Stop</th><th>Aksi</th> </thead> <tbody> ${allMachines.map(m => `<tr>
                             <td><strong>${m.machine_name}</strong></div></div></div></td>
                             <td>${m.target_per_minute}</div></div></div></td>
                             <td>${m.pic || '-'}</div></div></div></td>
                             <td><span class="text-xs text-blue-600">${Object.values(m.activities || {}).reduce((s,a)=>s+a.length,0)} kegiatan</span></div></div></div></td>
+                            <td><span class="text-xs text-purple-600">${(m.minor_stop_items || []).length} item</span></div></div></div></td>
                             <td><button class="btn btn-secondary text-sm py-1 px-3 mr-2" onclick="window.editMachineActivities('${m.id}')"><i class="fas fa-tasks"></i> Kegiatan</button><button class="btn btn-secondary text-sm py-1 px-3 mr-2" onclick="window.editMachine('${m.id}')">Edit</button><button class="btn btn-danger text-sm py-1 px-3" onclick="window.deleteMachine('${m.id}')">Hapus</button></div></div></div></td>
                         </tr>`).join('')} </tbody> </div>
                 </div>
@@ -1413,7 +1560,7 @@
         `;
     }
     
-    // ==================== EDIT MESIN ACTIVITIES ====================
+    // ==================== EDIT MESIN ====================
     function editMachineActivities(machineId) {
         const machine = allMachines.find(m => m.id === machineId);
         if (!machine) return;
@@ -1494,47 +1641,154 @@
         }
     }
     
+    function editMachine(id) { 
+        const m = allMachines.find(m => m.id === id); 
+        if (!m) return; 
+        
+        const minorStopItems = (m.minor_stop_items || []).join(', ');
+        
+        showModal(`<h3 class="text-xl font-bold mb-4">✏️ EDIT MESIN: ${m.machine_name}</h3>
+            <div><label>Nama Mesin</label><input type="text" id="edit-name" class="input-field mb-2" value="${m.machine_name}"></div>
+            <div><label>Target per Menit</label><input type="number" id="edit-target" class="input-field mb-2" step="0.1" value="${m.target_per_minute}"></div>
+            <div><label>PIC</label><input type="text" id="edit-pic" class="input-field mb-2" value="${m.pic || ''}"></div>
+            <div><label>Minor Stop Items (pisahkan dengan koma)</label><input type="text" id="edit-minor-stop" class="input-field mb-4" value="${minorStopItems}" placeholder="Contoh: BOTTLE JAM, SENSOR ERROR, BELT SLIP"></div>
+            <div class="flex gap-3"><button class="btn btn-primary flex-1" onclick="window.updateMachine('${id}')">UPDATE</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
+        `); 
+    }
+    
+    function updateMachine(id) { 
+        const name = document.getElementById('edit-name')?.value.toUpperCase(); 
+        const target = parseFloat(document.getElementById('edit-target')?.value) || 0; 
+        const pic = document.getElementById('edit-pic')?.value.toUpperCase() || ''; 
+        const minorStopStr = document.getElementById('edit-minor-stop')?.value || '';
+        const minorStopItems = minorStopStr.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+        
+        const idx = allMachines.findIndex(m => m.id === id); 
+        if (idx !== -1) { 
+            allMachines[idx] = { ...allMachines[idx], machine_name: name, target_per_minute: target, pic: pic, minor_stop_items: minorStopItems }; 
+            saveToStorage(); 
+            closeModal(); 
+            renderApp(); 
+            showToast('Mesin diupdate'); 
+        } 
+    }
+    
+    function deleteMachine(id) { 
+        if (confirm('Hapus mesin ini? Data OEE yang terkait akan tetap ada.')) { 
+            allMachines = allMachines.filter(m => m.id !== id); 
+            saveToStorage(); 
+            renderApp(); 
+            showToast('Mesin dihapus'); 
+        } 
+    }
+    
+    function showTambahMesinModal() { 
+        showModal(`<h3 class="text-xl font-bold mb-4">➕ TAMBAH MESIN</h3>
+            <div><label>Nama Mesin</label><input type="text" id="new-machine-name" class="input-field mb-2" placeholder="CONTOH: INJEKSI 3"></div>
+            <div><label>Target per Menit</label><input type="number" id="new-machine-target" class="input-field mb-2" step="0.1" placeholder="Contoh: 2.5"></div>
+            <div><label>PIC</label><input type="text" id="new-machine-pic" class="input-field mb-2" placeholder="NAMA OPERATOR"></div>
+            <div><label>Minor Stop Items (pisahkan dengan koma)</label><input type="text" id="new-machine-minor-stop" class="input-field mb-4" placeholder="Contoh: BOTTLE JAM, SENSOR ERROR, BELT SLIP"></div>
+            <div class="flex gap-3"><button class="btn btn-primary flex-1" onclick="window.saveNewMachine()">SIMPAN</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
+        `); 
+    }
+    
+    function saveNewMachine() { 
+        const name = document.getElementById('new-machine-name')?.value.toUpperCase(); 
+        const target = parseFloat(document.getElementById('new-machine-target')?.value) || 0; 
+        const pic = document.getElementById('new-machine-pic')?.value.toUpperCase() || ''; 
+        const minorStopStr = document.getElementById('new-machine-minor-stop')?.value || '';
+        const minorStopItems = minorStopStr.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+        
+        if (!name) { showToast('Nama mesin harus diisi', 'error'); return; } 
+        allMachines.push({ 
+            id: Date.now().toString(), 
+            machine_name: name, 
+            target_per_minute: target, 
+            pic: pic, 
+            activities: {},
+            minor_stop_items: minorStopItems
+        }); 
+        saveToStorage(); 
+        closeModal(); 
+        renderApp(); 
+        showToast('Mesin ditambahkan. Sekarang atur kegiatannya dengan klik tombol Kegiatan'); 
+    }
+    
+    function addLibraryItem(kode) { 
+        showModal(`<h3 class="text-xl font-bold mb-4">➕ TAMBAH KE LIBRARY KODE ${kode}</h3>
+            <div><label>Nama Kegiatan</label><input type="text" id="new-item" class="input-field mb-4" placeholder="Contoh: SETUP MESIN"></div>
+            <div class="flex gap-3"><button class="btn btn-primary flex-1" onclick="window.saveLibraryItem('${kode}')">SIMPAN</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
+        `); 
+    }
+    
+    function saveLibraryItem(kode) { 
+        const nama = document.getElementById('new-item')?.value.toUpperCase(); 
+        if (!nama) { showToast('Nama kegiatan harus diisi', 'error'); return; } 
+        if (!libraryKegiatan[kode]) libraryKegiatan[kode] = []; 
+        libraryKegiatan[kode].push(nama); 
+        saveToStorage(); 
+        closeModal(); 
+        renderApp(); 
+        showToast('Kegiatan ditambahkan'); 
+    }
+    
+    function removeLibraryItem(kode, item) { 
+        if (confirm(`Hapus "${item}"?`)) { 
+            libraryKegiatan[kode] = libraryKegiatan[kode].filter(i => i !== item); 
+            saveToStorage(); 
+            renderApp(); 
+            showToast('Kegiatan dihapus'); 
+        } 
+    }
+    
+    function searchOEERecords() {
+        const date = document.getElementById('edit-search-date')?.value;
+        const shift = document.getElementById('edit-search-shift')?.value;
+        const machine = document.getElementById('edit-search-machine')?.value;
+        let results = allOEERecords;
+        if (date) results = results.filter(r => r.date === date);
+        if (shift && shift !== '') results = results.filter(r => r.shift === shift);
+        if (machine && machine !== '') results = results.filter(r => r.machine_name === machine);
+        const container = document.getElementById('edit-search-results');
+        if (!container) return;
+        if (results.length === 0) { container.innerHTML = '<div class="text-center py-8 text-gray-400">Tidak ada data</div>'; return; }
+        container.innerHTML = `<div class="table-wrapper"> <table> <thead> <tr><th>Tanggal</th><th>Shift</th><th>Mesin</th><th>PIC</th><th>Output</th><th>OEE%</th><th>Aksi</th> </thead> <tbody>${results.map(r => `<tr>
+                <td>${formatDateShort(r.date)}</div></div></div></td>
+                <td>${r.shift}</td>
+                <td>${r.machine_name}</td>
+                <td>${r.pic}</td>
+                <td>${r.actual_output}</td>
+                <td class="${(r.oee_actual || 0) >= 88 ? 'status-good' : 'status-bad'}">${(r.oee_actual || 0).toFixed(1)}%</div></div></div></td>
+                <td><button class="btn btn-primary text-xs py-1 px-3" onclick="window.editOEERecord('${r.id}')">Edit</button></td>
+            </tr>`).join('')} </tbody> </div>`;
+    }
+    
     // ==================== INPUT TKL ACTIONS ====================
-    function updateSelectedDate(val) { 
-        selectedDate = val; 
-        renderApp(); 
+    let minorStopList = [];
+    
+    function tambahMinorStop() {
+        const itemName = prompt('Masukkan nama Minor Stop:', '');
+        if (itemName && itemName.trim()) {
+            minorStopList.push(toUpper(itemName.trim()));
+            renderApp();
+            showToast('Minor Stop ditambahkan');
+        }
     }
     
-    function updateOperatorValue(val) { 
-        selectedOperator = toUpper(val); 
-        renderApp(); 
-    }
+    function updateSelectedDate(val) { selectedDate = val; renderApp(); }
+    function updateOperatorValue(val) { selectedOperator = toUpper(val); renderApp(); }
+    function updateShiftValue(val) { selectedShift = val; renderApp(); }
+    function updateMachineValue(val) { selectedMachineId = val; renderApp(); }
     
-    function updateShiftValue(val) { 
-        selectedShift = val; 
-        renderApp(); 
-    }
-    
-    function updateMachineValue(val) { 
-        selectedMachineId = val; 
-        renderApp(); 
-    }
-    
-    function tambahBatch() { 
-        batches.push({ batch: '', good: 0, reject: 0 }); 
-        renderApp(); 
-    }
-    
-    function hapusBatch(i) { 
-        batches.splice(i, 1); 
-        renderApp(); 
-    }
-    
+    function tambahBatch() { batches.push({ batch: '', good: 0, reject: 0 }); renderApp(); }
+    function hapusBatch(i) { batches.splice(i, 1); renderApp(); }
     function updateBatch(i, field, val) { 
         if (field === 'batch') batches[i].batch = toUpper(val); 
         else batches[i][field] = val === '' ? 0 : parseInt(val) || 0; 
         renderApp(); 
     }
     
-    function hapusKegiatan(i) { 
-        kegiatanList.splice(i, 1); 
-        renderApp(); 
-    }
+    function hapusKegiatan(i) { kegiatanList.splice(i, 1); renderApp(); }
     
     function editKegiatan(index) {
         const kegiatan = kegiatanList[index];
@@ -1629,7 +1883,6 @@
             if (problem !== undefined) kegiatan.problem = problem;
             if (action !== undefined) kegiatan.action = action;
             
-            // Validasi No WR jika durasi >= 180 menit
             const durasi = hitungDurasi(kegiatan.dari, kegiatan.jam);
             if (durasi >= CONFIG.WR_REQUIRED_MINUTES && !kegiatan.no_wr) {
                 showToast('No WR wajib diisi karena durasi ≥ 180 menit!', 'error');
@@ -1638,13 +1891,11 @@
         } else if (kegiatan.kode === 9) {
             const problem = document.getElementById('edit-problem')?.value;
             const action = document.getElementById('edit-action')?.value;
-            
             if (problem !== undefined) kegiatan.problem = problem;
             if (action !== undefined) kegiatan.action = action;
         } else if ([1,5,7,8].includes(kegiatan.kode) && kegiatan.isExceed) {
             const problem = document.getElementById('edit-problem')?.value;
             const action = document.getElementById('edit-action')?.value;
-            
             if (problem !== undefined) kegiatan.problem = problem;
             if (action !== undefined) kegiatan.action = action;
         }
@@ -1659,6 +1910,7 @@
         editingRecordId = null; 
         kegiatanList = []; 
         batches = []; 
+        minorStopList = [];
         selectedShift = ''; 
         selectedMachineId = ''; 
         selectedOperator = ''; 
@@ -1667,10 +1919,7 @@
     }
     
     function showTambahKegiatanModal() {
-        if (!selectedMachineId) { 
-            showToast('PILIH MESIN DULU', 'error'); 
-            return; 
-        }
+        if (!selectedMachineId) { showToast('PILIH MESIN DULU', 'error'); return; }
         
         const mesin = allMachines.find(m => m.id === selectedMachineId);
         if (!mesin || !mesin.activities || Object.keys(mesin.activities).length === 0) {
@@ -1681,10 +1930,7 @@
         const start = getNextStart();
         const shiftEnd = getShiftEnd();
         
-        if (isTimeGreater(start, shiftEnd)) { 
-            showToast('SHIFT SUDAH BERAKHIR', 'error'); 
-            return; 
-        }
+        if (isTimeGreater(start, shiftEnd)) { showToast('SHIFT SUDAH BERAKHIR', 'error'); return; }
         
         let options = '<option value="">PILIH KEGIATAN</option>';
         const kodeUrutan = ['1','2','3','5','6','7','8','9'];
@@ -1714,7 +1960,6 @@
             </div>
             <div class="mb-3"><label>KEGIATAN</label><select id="modal-kegiatan-select" class="input-field" onchange="window.updateKegiatanFromSelect()">${options}</select></div>
             <div class="mb-3"><label>NAMA KEGIATAN</label><input type="text" id="modal-kegiatan" class="input-field" readonly></div>
-            <div id="modal-additional-fields" class="hidden"></div>
             <div class="flex gap-3 mt-4"><button class="btn btn-primary flex-1" onclick="window.tambahKegiatanFromModal()">TAMBAH</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
         `);
     }
@@ -1725,9 +1970,7 @@
             const [kode, idx] = sel.value.split('_');
             const mesin = allMachines.find(m => m.id === selectedMachineId);
             const kegiatan = mesin?.activities?.[kode]?.[parseInt(idx)];
-            if (kegiatan) {
-                document.getElementById('modal-kegiatan').value = kegiatan.nama;
-            }
+            if (kegiatan) document.getElementById('modal-kegiatan').value = kegiatan.nama;
         }
     }
     
@@ -1737,59 +1980,36 @@
         const kegiatan = document.getElementById('modal-kegiatan')?.value;
         const sel = document.getElementById('modal-kegiatan-select');
         
-        if (!sel?.value || !kegiatan) { 
-            showToast('PILIH KEGIATAN', 'error'); 
-            return; 
-        }
+        if (!sel?.value || !kegiatan) { showToast('PILIH KEGIATAN', 'error'); return; }
         
         const [kodeStr] = sel.value.split('_');
         const kode = parseInt(kodeStr);
         
-        if (isTimeGreater(sampai, getShiftEnd())) { 
-            showToast('MELEBIHI AKHIR SHIFT', 'error'); 
-            return; 
-        }
+        if (isTimeGreater(sampai, getShiftEnd())) { showToast('MELEBIHI AKHIR SHIFT', 'error'); return; }
         
         if (kegiatanList.length === 0) { 
-            if (dari !== getShiftStart()) { 
-                showToast(`KEGIATAN PERTAMA HARUS MULAI JAM ${getShiftStart()}`, 'error'); 
-                return; 
-            } 
+            if (dari !== getShiftStart()) { showToast(`KEGIATAN PERTAMA HARUS MULAI JAM ${getShiftStart()}`, 'error'); return; } 
         } else { 
             const last = kegiatanList[kegiatanList.length - 1]; 
-            if (dari !== last.jam) { 
-                showToast(`HARUS LANJUT DARI JAM ${last.jam}`, 'error'); 
-                return; 
-            } 
+            if (dari !== last.jam) { showToast(`HARUS LANJUT DARI JAM ${last.jam}`, 'error'); return; } 
         }
         
         const newKegiatan = { 
-            dari, 
-            jam: sampai, 
-            kode: kode, 
-            kegiatan: toUpper(kegiatan),
-            problem: '',
-            action: '',
-            no_wr: '',
-            isExceed: false
+            dari, jam: sampai, kode: kode, kegiatan: toUpper(kegiatan),
+            problem: '', action: '', no_wr: '', isExceed: false
         };
         
-        // Untuk kode 3 (Line Stop Mesin), setelah tambah akan muncul modal edit untuk mengisi detail
         if (kode === 3) {
             kegiatanList.push(newKegiatan);
             closeModal();
             renderApp();
-            // Buka modal edit untuk mengisi No WR, Problem, Action
-            setTimeout(() => {
-                editKegiatan(kegiatanList.length - 1);
-            }, 100);
+            setTimeout(() => editKegiatan(kegiatanList.length - 1), 100);
         } else {
             kegiatanList.push(newKegiatan);
             closeModal();
             renderApp();
             showToast('KEGIATAN DITAMBAHKAN');
             
-            // Untuk ODT (kode 1,5,7,8) cek apakah melebihi standar
             if ([1,5,7,8].includes(kode)) {
                 const mesin = allMachines.find(m => m.id === selectedMachineId);
                 let standarDurasi = 0;
@@ -1803,16 +2023,13 @@
                     newKegiatan.exceedDuration = durasi - standarDurasi;
                     newKegiatan.standarDurasi = standarDurasi;
                     renderApp();
-                    setTimeout(() => {
-                        editKegiatan(kegiatanList.length - 1);
-                    }, 100);
+                    setTimeout(() => editKegiatan(kegiatanList.length - 1), 100);
                 }
             }
         }
     }
     
     function simpanData() {
-        // Ambil nilai terbaru dari input fields
         const dateInput = document.getElementById('input-date');
         const shiftSelect = document.getElementById('input-shift');
         const machineSelect = document.getElementById('input-machine');
@@ -1823,29 +2040,12 @@
         if (machineSelect && machineSelect.value) selectedMachineId = machineSelect.value;
         if (operatorInput && operatorInput.value) selectedOperator = toUpper(operatorInput.value);
         
-        // Validasi
-        if (!selectedShift) { 
-            showToast('LENGKAPI DATA: Pilih SHIFT terlebih dahulu!', 'error'); 
-            return; 
-        }
-        if (!selectedMachineId) { 
-            showToast('LENGKAPI DATA: Pilih MESIN terlebih dahulu!', 'error'); 
-            return; 
-        }
-        if (!selectedOperator) { 
-            showToast('LENGKAPI DATA: Isi nama OPERATOR!', 'error'); 
-            return; 
-        }
-        if (!kegiatanList.length) { 
-            showToast('MINIMAL 1 KEGIATAN', 'error'); 
-            return; 
-        }
-        if (!batches.length) { 
-            showToast('MINIMAL 1 BATCH', 'error'); 
-            return; 
-        }
+        if (!selectedShift) { showToast('LENGKAPI DATA: Pilih SHIFT terlebih dahulu!', 'error'); return; }
+        if (!selectedMachineId) { showToast('LENGKAPI DATA: Pilih MESIN terlebih dahulu!', 'error'); return; }
+        if (!selectedOperator) { showToast('LENGKAPI DATA: Isi nama OPERATOR!', 'error'); return; }
+        if (!kegiatanList.length) { showToast('MINIMAL 1 KEGIATAN', 'error'); return; }
+        if (!batches.length) { showToast('MINIMAL 1 BATCH', 'error'); return; }
         
-        // Validasi No WR untuk Line Stop Mesin dengan durasi >= 180 menit
         for (const k of kegiatanList) {
             if (k.kode === 3) {
                 const durasi = hitungDurasi(k.dari, k.jam);
@@ -1859,6 +2059,42 @@
         const oeeData = hitungAvailAndOEE(kegiatanList, batches, selectedShift, selectedMachineId);
         const resume = hitungResume(kegiatanList, selectedMachineId);
         const mesin = allMachines.find(m => m.id === selectedMachineId);
+        
+        // Kumpulkan data minor stop dari form
+        const minorStopData = [];
+        const mesinMinorItems = mesin?.minor_stop_items || [];
+        for (let i = 0; i < mesinMinorItems.length; i++) {
+            const freqInput = document.getElementById(`minor-stop-${i}`);
+            const problemInput = document.getElementById(`minor-problem-${i}`);
+            const actionInput = document.getElementById(`minor-action-${i}`);
+            if (freqInput) {
+                const freq = parseInt(freqInput.value) || 0;
+                if (freq > 0) {
+                    minorStopData.push({
+                        item: mesinMinorItems[i],
+                        frequency: freq,
+                        problem: problemInput?.value || '',
+                        action: actionInput?.value || ''
+                    });
+                }
+            }
+        }
+        
+        // Tambahkan minor stop custom dari user
+        for (let i = 0; i < minorStopList.length; i++) {
+            const freqInput = document.getElementById(`custom-minor-${i}`);
+            if (freqInput) {
+                const freq = parseInt(freqInput.value) || 0;
+                if (freq > 0) {
+                    minorStopData.push({
+                        item: minorStopList[i],
+                        frequency: freq,
+                        problem: document.getElementById(`custom-problem-${i}`)?.value || '',
+                        action: document.getElementById(`custom-action-${i}`)?.value || ''
+                    });
+                }
+            }
+        }
         
         const recordData = {
             date: selectedDate,
@@ -1875,7 +2111,7 @@
             quality: oeeData.quality,
             oee_actual: oeeData.oee,
             oee_365: oeeData.oee365,
-            minor_stop_count: 0,
+            minor_stop_count: minorStopData.reduce((s,ms)=>s+ms.frequency,0),
             odt_data: kegiatanList.filter(k => [1,5,6,7,8].includes(k.kode)).map(k => {
                 const mesinData = allMachines.find(m => m.id === selectedMachineId);
                 let standar = 0;
@@ -1914,26 +2150,18 @@
                     action: ex.action || ''
                 }))
             ],
-            minor_stop_data: [],
+            minor_stop_data: minorStopData,
             notes: '',
             kegiatan_data: JSON.parse(JSON.stringify(kegiatanList)),
             batch_data: JSON.parse(JSON.stringify(batches))
         };
         
-        if (editMode && editingRecordId) {
-            updateOEERecord(editingRecordId, recordData);
-        } else {
-            saveOEERecord(recordData);
-        }
+        if (editMode && editingRecordId) updateOEERecord(editingRecordId, recordData);
+        else saveOEERecord(recordData);
         
-        // Reset form
-        kegiatanList = []; 
-        batches = []; 
-        selectedShift = ''; 
-        selectedMachineId = ''; 
-        selectedOperator = ''; 
-        editMode = false; 
-        editingRecordId = null;
+        kegiatanList = []; batches = []; minorStopList = [];
+        selectedShift = ''; selectedMachineId = ''; selectedOperator = '';
+        editMode = false; editingRecordId = null;
         
         navigateTo('dashboard');
         showToast('Data berhasil disimpan!');
@@ -1954,135 +2182,18 @@
         showToast('Data loaded for editing');
     }
     
-    // ==================== MANAGEMENT ACTIONS ====================
     function unlockManagement() { 
         const input = document.getElementById('mgmt-password');
         if (input && input.value === CONFIG.MANAGEMENT_PASSWORD) { 
             isManagementUnlocked = true; 
             renderApp(); 
             showToast('Management unlocked'); 
-        } else if (input) {
-            showToast('Password salah', 'error'); 
-        }
+        } else if (input) showToast('Password salah', 'error'); 
     }
     
-    function showTambahMesinModal() { 
-        showModal(`<h3 class="text-xl font-bold mb-4">➕ TAMBAH MESIN</h3>
-            <div><label>Nama Mesin</label><input type="text" id="new-machine-name" class="input-field mb-2" placeholder="CONTOH: INJEKSI 3"></div>
-            <div><label>Target per Menit</label><input type="number" id="new-machine-target" class="input-field mb-2" step="0.1" placeholder="Contoh: 2.5"></div>
-            <div><label>PIC</label><input type="text" id="new-machine-pic" class="input-field mb-4" placeholder="NAMA OPERATOR"></div>
-            <div class="flex gap-3"><button class="btn btn-primary flex-1" onclick="window.saveNewMachine()">SIMPAN</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
-        `); 
-    }
+    function navigateTo(page) { currentPage = page; if (page !== 'management') isManagementUnlocked = false; renderApp(); }
+    function updateFilter(key, value) { filters[key] = value; renderApp(); }
     
-    function saveNewMachine() { 
-        const name = document.getElementById('new-machine-name')?.value.toUpperCase(); 
-        const target = parseFloat(document.getElementById('new-machine-target')?.value) || 0; 
-        const pic = document.getElementById('new-machine-pic')?.value.toUpperCase() || ''; 
-        if (!name) { showToast('Nama mesin harus diisi', 'error'); return; } 
-        allMachines.push({ id: Date.now().toString(), machine_name: name, target_per_minute: target, pic: pic, activities: {} }); 
-        saveToStorage(); 
-        closeModal(); 
-        renderApp(); 
-        showToast('Mesin ditambahkan. Sekarang atur kegiatannya dengan klik tombol Kegiatan'); 
-    }
-    
-    function editMachine(id) { 
-        const m = allMachines.find(m => m.id === id); 
-        if (!m) return; 
-        showModal(`<h3 class="text-xl font-bold mb-4">✏️ EDIT MESIN</h3>
-            <div><label>Nama Mesin</label><input type="text" id="edit-name" class="input-field mb-2" value="${m.machine_name}"></div>
-            <div><label>Target per Menit</label><input type="number" id="edit-target" class="input-field mb-2" step="0.1" value="${m.target_per_minute}"></div>
-            <div><label>PIC</label><input type="text" id="edit-pic" class="input-field mb-4" value="${m.pic || ''}"></div>
-            <div class="flex gap-3"><button class="btn btn-primary flex-1" onclick="window.updateMachine('${id}')">UPDATE</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
-        `); 
-    }
-    
-    function updateMachine(id) { 
-        const name = document.getElementById('edit-name')?.value.toUpperCase(); 
-        const target = parseFloat(document.getElementById('edit-target')?.value) || 0; 
-        const pic = document.getElementById('edit-pic')?.value.toUpperCase() || ''; 
-        const idx = allMachines.findIndex(m => m.id === id); 
-        if (idx !== -1) { 
-            allMachines[idx] = { ...allMachines[idx], machine_name: name, target_per_minute: target, pic: pic }; 
-            saveToStorage(); 
-            closeModal(); 
-            renderApp(); 
-            showToast('Mesin diupdate'); 
-        } 
-    }
-    
-    function deleteMachine(id) { 
-        if (confirm('Hapus mesin ini? Data OEE yang terkait akan tetap ada.')) { 
-            allMachines = allMachines.filter(m => m.id !== id); 
-            saveToStorage(); 
-            renderApp(); 
-            showToast('Mesin dihapus'); 
-        } 
-    }
-    
-    function addLibraryItem(kode) { 
-        showModal(`<h3 class="text-xl font-bold mb-4">➕ TAMBAH KE LIBRARY KODE ${kode}</h3>
-            <div><label>Nama Kegiatan</label><input type="text" id="new-item" class="input-field mb-4" placeholder="Contoh: SETUP MESIN"></div>
-            <div class="flex gap-3"><button class="btn btn-primary flex-1" onclick="window.saveLibraryItem('${kode}')">SIMPAN</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
-        `); 
-    }
-    
-    function saveLibraryItem(kode) { 
-        const nama = document.getElementById('new-item')?.value.toUpperCase(); 
-        if (!nama) { showToast('Nama kegiatan harus diisi', 'error'); return; } 
-        if (!libraryKegiatan[kode]) libraryKegiatan[kode] = []; 
-        libraryKegiatan[kode].push(nama); 
-        saveToStorage(); 
-        closeModal(); 
-        renderApp(); 
-        showToast('Kegiatan ditambahkan'); 
-    }
-    
-    function removeLibraryItem(kode, item) { 
-        if (confirm(`Hapus "${item}"?`)) { 
-            libraryKegiatan[kode] = libraryKegiatan[kode].filter(i => i !== item); 
-            saveToStorage(); 
-            renderApp(); 
-            showToast('Kegiatan dihapus'); 
-        } 
-    }
-    
-    function searchOEERecords() {
-        const date = document.getElementById('edit-search-date')?.value;
-        const shift = document.getElementById('edit-search-shift')?.value;
-        const machine = document.getElementById('edit-search-machine')?.value;
-        let results = allOEERecords;
-        if (date) results = results.filter(r => r.date === date);
-        if (shift && shift !== '') results = results.filter(r => r.shift === shift);
-        if (machine && machine !== '') results = results.filter(r => r.machine_name === machine);
-        const container = document.getElementById('edit-search-results');
-        if (!container) return;
-        if (results.length === 0) { container.innerHTML = '<div class="text-center py-8 text-gray-400">Tidak ada data</div>'; return; }
-        container.innerHTML = `<div class="table-wrapper"> <table> <thead> <tr><th>Tanggal</th><th>Shift</th><th>Mesin</th><th>PIC</th><th>Output</th><th>OEE%</th><th>Aksi</th> </thead> <tbody>${results.map(r => `<tr>
-                <td>${formatDateShort(r.date)}</div></div></div></td>
-                <td>${r.shift}</td>
-                <td>${r.machine_name}</td>
-                <td>${r.pic}</td>
-                <td>${r.actual_output}</td>
-                <td class="${(r.oee_actual || 0) >= 88 ? 'status-good' : 'status-bad'}">${(r.oee_actual || 0).toFixed(1)}%</div></div></div></td>
-                <td><button class="btn btn-primary text-xs py-1 px-3" onclick="window.editOEERecord('${r.id}')">Edit</button></td>
-            </tr>`).join('')} </tbody> </div>`;
-    }
-    
-    // ==================== NAVIGATION ====================
-    function navigateTo(page) {
-        currentPage = page;
-        if (page !== 'management') isManagementUnlocked = false;
-        renderApp();
-    }
-    
-    function updateFilter(key, value) {
-        filters[key] = value;
-        renderApp();
-    }
-    
-    // ==================== THEME ====================
     function toggleTheme() {
         const html = document.documentElement;
         const current = html.getAttribute('data-theme');
@@ -2100,7 +2211,6 @@
         if (btn) btn.textContent = saved === 'dark' ? '☀️' : '🌙';
     }
     
-    // ==================== RENDER APP ====================
     function renderApp() {
         const app = document.getElementById('app-wrapper');
         if (!app) return;
@@ -2117,7 +2227,7 @@
         }
     }
     
-    // ==================== EXPORT GLOBAL ====================
+    // EXPORT GLOBAL
     window.navigateTo = navigateTo;
     window.updateFilter = updateFilter;
     window.toggleTheme = toggleTheme;
@@ -2151,8 +2261,8 @@
     window.searchOEERecords = searchOEERecords;
     window.editMachineActivities = editMachineActivities;
     window.saveMachineActivities = saveMachineActivities;
+    window.tambahMinorStop = tambahMinorStop;
     
-    // ==================== INIT ====================
     loadFromStorage();
     initTheme();
     renderApp();
