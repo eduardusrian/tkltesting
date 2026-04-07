@@ -1,92 +1,2328 @@
--- Tabel mesin
-CREATE TABLE machines (
-    id TEXT PRIMARY KEY,
-    machine_name TEXT NOT NULL,
-    target_per_minute DECIMAL(10,2) DEFAULT 1,
-    pic TEXT,
-    activities JSONB DEFAULT '{}',
-    minor_stop_items TEXT[] DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>OEE TKL SYSTEM • PT GOF • Supabase</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        * { font-family: 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+        
+        [data-theme="light"] body { background: #f8fafc; }
+        [data-theme="dark"] body { background: #0f172a; }
+        
+        [data-theme="light"] .card { background: white; border: 1px solid #e2e8f0; }
+        [data-theme="dark"] .card { background: #1e293b; border: 1px solid #334155; }
+        
+        [data-theme="light"] .card-header { color: #1e293b; }
+        [data-theme="dark"] .card-header { color: #f1f5f9; }
+        
+        [data-theme="light"] .input-field { background: white; border: 1px solid #e2e8f0; color: #1e293b; }
+        [data-theme="dark"] .input-field { background: #334155; border: 1px solid #475569; color: #f1f5f9; }
+        
+        [data-theme="light"] .resume-card { background: #f8fafc; border: 1px solid #e2e8f0; }
+        [data-theme="dark"] .resume-card { background: #0f172a; border: 1px solid #334155; }
+        
+        [data-theme="light"] .timeline-card { background: #f8fafc; border: 1px solid #e2e8f0; }
+        [data-theme="dark"] .timeline-card { background: #0f172a; border: 1px solid #334155; }
+        
+        [data-theme="light"] .scorecard { background: white; border: 2px solid #e2e8f0; }
+        [data-theme="dark"] .scorecard { background: #1e293b; border: 2px solid #334155; }
+        
+        [data-theme="light"] .bg-gray-50 { background: #f9fafb; }
+        [data-theme="dark"] .bg-gray-50 { background: #0f172a; }
+        
+        [data-theme="light"] .bg-blue-50 { background: #eff6ff; }
+        [data-theme="dark"] .bg-blue-50 { background: #1e3a5f; }
+        
+        [data-theme="light"] .bg-red-50 { background: #fef2f2; }
+        [data-theme="dark"] .bg-red-50 { background: #7f1d1d; }
+        
+        [data-theme="light"] .text-gray-500 { color: #6b7280; }
+        [data-theme="dark"] .text-gray-500 { color: #94a3b8; }
+        
+        .card {
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .card-header {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
+        .input-field {
+            width: 100%;
+            padding: 0.6rem 1rem;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: #667eea;
+            ring: 2px solid rgba(102,126,234,0.2);
+        }
+        
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(102,126,234,0.3); }
+        
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+        }
+        
+        [data-theme="dark"] .btn-secondary {
+            background: #334155;
+            color: #e2e8f0;
+            border-color: #475569;
+        }
+        
+        .btn-secondary:hover { background: #e2e8f0; }
+        [data-theme="dark"] .btn-secondary:hover { background: #475569; }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: white;
+            border-radius: 100px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        [data-theme="dark"] .nav-tabs {
+            background: #1e293b;
+            border-color: #334155;
+        }
+        
+        .nav-tab {
+            padding: 0.6rem 1.5rem;
+            border-radius: 100px;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        [data-theme="dark"] .nav-tab { color: #94a3b8; }
+        
+        .nav-tab:hover { background: #f1f5f9; }
+        [data-theme="dark"] .nav-tab:hover { background: #334155; }
+        
+        .nav-tab.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .kode-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            padding: 4px 8px;
+            border-radius: 30px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .kode-1 { background: #fef3c7; color: #92400e; }
+        .kode-2 { background: #d1fae5; color: #065f46; }
+        .kode-3 { background: #fee2e2; color: #991b1b; }
+        .kode-5 { background: #f3e8ff; color: #6b21a8; }
+        .kode-6 { background: #ffe4e6; color: #9f1239; }
+        .kode-7 { background: #cffafe; color: #155e75; }
+        .kode-8 { background: #fed7aa; color: #7b341e; }
+        .kode-9 { background: #f1f5f9; color: #334155; }
+        
+        [data-theme="dark"] .kode-9 { background: #334155; color: #cbd5e1; }
+        
+        .scorecard {
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .scorecard-value {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin: 0.5rem 0;
+        }
+        
+        .scorecard.good .scorecard-value { color: #10b981; }
+        .scorecard.bad .scorecard-value { color: #ef4444; }
+        
+        .timeline-card {
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .timeline-card-details { flex: 1; }
+        .timeline-card-actions { display: flex; gap: 0.5rem; align-items: center; }
+        
+        .resume-card {
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        
+        .resume-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        
+        .sisa-jam-card {
+            background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+            border-radius: 12px;
+            padding: 1rem;
+            border: 1px solid #7dd3fc;
+        }
+        
+        [data-theme="dark"] .sisa-jam-card {
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            border-color: #38bdf8;
+        }
+        
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        [data-theme="dark"] .table-wrapper { border-color: #334155; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1000px;
+        }
+        
+        th {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 0.8rem;
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-align: left;
+        }
+        
+        td {
+            padding: 0.8rem;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.85rem;
+        }
+        
+        [data-theme="dark"] td {
+            border-bottom-color: #334155;
+            color: #e2e8f0;
+        }
+        
+        tr.clickable-row {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        tr.clickable-row:hover {
+            background: rgba(102,126,234,0.05);
+        }
+        
+        [data-theme="dark"] tr.clickable-row:hover {
+            background: rgba(102,126,234,0.15);
+        }
+        
+        .status-good { color: #10b981; font-weight: 600; }
+        .status-bad { color: #ef4444; font-weight: 600; }
+        
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+            border-left: 4px solid #10b981;
+            font-weight: 600;
+            z-index: 9999;
+            animation: slideIn 0.3s ease;
+        }
+        
+        [data-theme="dark"] .toast {
+            background: #1e293b;
+            color: #f1f5f9;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 1rem;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            padding: 2rem;
+            max-width: 800px;
+            width: 100%;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        
+        [data-theme="dark"] .modal-content {
+            background: #1e293b;
+            color: #f1f5f9;
+        }
+        
+        .filter-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .chart-container { height: 300px; position: relative; }
+        .chart-container-horizontal { height: 400px; position: relative; }
+        
+        .gradient-bg {
+            background: linear-gradient(-45deg, #667eea, #764ba2, #6b46c1, #4299e1);
+            background-size: 400% 400%;
+            animation: gradient 10s ease infinite;
+        }
+        
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .detail-item {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 8px;
+        }
+        
+        [data-theme="dark"] .detail-item { background: #0f172a; }
+        
+        .detail-item-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .detail-item-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        [data-theme="dark"] .detail-item-value { color: #f1f5f9; }
+        
+        .badge-success {
+            background: rgba(16,185,129,0.1);
+            color: #10b981;
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+        
+        .badge-danger {
+            background: rgba(239,68,68,0.1);
+            color: #ef4444;
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+        
+        .theme-toggle {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        
+        .login-container {
+            min-height: 60vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .edit-mode-badge {
+            background: #f59e0b;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .oee-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1rem;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+        
+        [data-theme="dark"] .oee-card {
+            background: #1e293b;
+            border-color: #334155;
+        }
+        
+        .oee-card-large {
+            background: linear-gradient(135deg, #667eea15, #764ba215);
+            border: 2px solid #667eea;
+        }
+        
+        .oee-value {
+            font-size: 2rem;
+            font-weight: 800;
+            margin: 0.5rem 0;
+        }
+        
+        .oee-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .card { padding: 1rem; }
+            .nav-tabs { border-radius: 20px; }
+            .nav-tab { padding: 0.5rem 1rem; font-size: 12px; }
+            .scorecard-value { font-size: 1.5rem; }
+            .oee-value { font-size: 1.5rem; }
+            .btn { padding: 0.5rem 1rem; font-size: 12px; }
+            .chart-container-horizontal { height: 300px; }
+        }
+        
+        .flex { display: flex; }
+        .flex-1 { flex: 1; }
+        .flex-wrap { flex-wrap: wrap; }
+        .justify-between { justify-content: space-between; }
+        .justify-end { justify-content: flex-end; }
+        .items-center { align-items: center; }
+        .items-start { align-items: flex-start; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-3 { gap: 0.75rem; }
+        .gap-4 { gap: 1rem; }
+        .gap-6 { gap: 1.5rem; }
+        .mt-1 { margin-top: 0.25rem; }
+        .mt-2 { margin-top: 0.5rem; }
+        .mt-3 { margin-top: 0.75rem; }
+        .mt-4 { margin-top: 1rem; }
+        .mb-1 { margin-bottom: 0.25rem; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-3 { margin-bottom: 0.75rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .mb-6 { margin-bottom: 1.5rem; }
+        .p-2 { padding: 0.5rem; }
+        .p-3 { padding: 0.75rem; }
+        .p-4 { padding: 1rem; }
+        .p-6 { padding: 1.5rem; }
+        .px-4 { padding-left: 1rem; padding-right: 1rem; }
+        .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+        .px-8 { padding-left: 2rem; padding-right: 2rem; }
+        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+        .py-6 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+        .py-8 { padding-top: 2rem; padding-bottom: 2rem; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-xs { font-size: 0.75rem; }
+        .text-sm { font-size: 0.875rem; }
+        .text-lg { font-size: 1.125rem; }
+        .text-xl { font-size: 1.25rem; }
+        .text-2xl { font-size: 1.5rem; }
+        .font-bold { font-weight: 700; }
+        .font-semibold { font-weight: 600; }
+        .w-full { width: 100%; }
+        .w-32 { width: 8rem; }
+        .max-w-7xl { max-width: 80rem; margin-left: auto; margin-right: auto; }
+        .max-w-md { max-width: 28rem; }
+        .mx-auto { margin-left: auto; margin-right: auto; }
+        .grid { display: grid; }
+        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+        .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        @media (min-width: 768px) { 
+            .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .md\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        }
+        @media (min-width: 1024px) { .lg\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        .space-y-2 > * + * { margin-top: 0.5rem; }
+        .space-y-3 > * + * { margin-top: 0.75rem; }
+        .space-y-4 > * + * { margin-top: 1rem; }
+        .rounded-lg { border-radius: 0.5rem; }
+        .rounded-xl { border-radius: 0.75rem; }
+        .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .bg-white { background: white; }
+        [data-theme="dark"] .bg-white { background: #1e293b; }
+        .bg-blue-50 { background: #eff6ff; }
+        [data-theme="dark"] .bg-blue-50 { background: #1e3a5f; }
+        .bg-red-50 { background: #fef2f2; }
+        [data-theme="dark"] .bg-red-50 { background: #7f1d1d; }
+        .bg-orange-50 { background: #fff7ed; }
+        [data-theme="dark"] .bg-orange-50 { background: #7c2d12; }
+        .bg-yellow-50 { background: #fefce8; }
+        [data-theme="dark"] .bg-yellow-50 { background: #713f12; }
+        .bg-purple-50 { background: #faf5ff; }
+        [data-theme="dark"] .bg-purple-50 { background: #4c1d95; }
+        .bg-gradient-to-r { background-image: linear-gradient(to right, var(--tw-gradient-stops)); }
+        .from-blue-50 { --tw-gradient-from: #eff6ff; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(239,246,255,0)); }
+        .to-purple-50 { --tw-gradient-to: #faf5ff; }
+        .text-white { color: white; }
+        .text-white\/80 { color: rgba(255,255,255,0.8); }
+        .text-white\/70 { color: rgba(255,255,255,0.7); }
+        .text-gray-400 { color: #9ca3af; }
+        .text-blue-600 { color: #2563eb; }
+        .text-blue-700 { color: #1d4ed8; }
+        .text-red-600 { color: #dc2626; }
+        .text-red-700 { color: #b91c1c; }
+        .text-green-600 { color: #16a34a; }
+        .text-orange-600 { color: #ea580c; }
+        .text-orange-700 { color: #c2410c; }
+        .text-sky-600 { color: #0284c7; }
+        .text-sky-700 { color: #0369a1; }
+        .text-sky-800 { color: #075985; }
+        .border { border-width: 1px; }
+        .border-l-4 { border-left-width: 4px; }
+        .border-orange-300 { border-color: #fdba74; }
+        .border-yellow-400 { border-color: #facc15; }
+        .border-red-300 { border-color: #fca5a5; }
+        .border-purple-300 { border-color: #d8b4fe; }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .overflow-x-auto { overflow-x: auto; }
+        .hover\:scale-105:hover { transform: scale(1.05); }
+        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+        
+        .required-field { border-color: #ef4444 !important; background-color: rgba(239,68,68,0.05) !important; }
+        .required-label::after { content: " *"; color: #ef4444; }
+    </style>
+</head>
+<body>
 
--- Tabel library kegiatan
-CREATE TABLE library_kegiatan (
-    kode TEXT PRIMARY KEY,
-    items TEXT[] DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+<div id="app-wrapper">
+    <div class="flex items-center justify-center min-h-screen">
+        <div class="text-center">
+            <div class="loading-spinner w-12 h-12 border-4 border-gray-300 border-t-purple-600 rounded-full animate-spin"></div>
+            <p class="mt-4 text-gray-500">Loading...</p>
+        </div>
+    </div>
+</div>
+<button class="theme-toggle" id="theme-toggle-btn">🌙</button>
 
--- Tabel OEE records
-CREATE TABLE oee_records (
-    id TEXT PRIMARY KEY,
-    date DATE NOT NULL,
-    shift TEXT NOT NULL,
-    machine_id TEXT NOT NULL,
-    machine_name TEXT NOT NULL,
-    pic TEXT NOT NULL,
-    batch_number TEXT,
-    actual_output INTEGER DEFAULT 0,
-    reject INTEGER DEFAULT 0,
-    availability_actual DECIMAL(10,2) DEFAULT 0,
-    availability_365 DECIMAL(10,2) DEFAULT 0,
-    performance DECIMAL(10,2) DEFAULT 0,
-    quality DECIMAL(10,2) DEFAULT 0,
-    oee_actual DECIMAL(10,2) DEFAULT 0,
-    oee_365 DECIMAL(10,2) DEFAULT 0,
-    minor_stop_count INTEGER DEFAULT 0,
-    odt_data JSONB DEFAULT '[]',
-    line_stop_mesin_data JSONB DEFAULT '[]',
-    line_stop_non_mesin_data JSONB DEFAULT '[]',
-    minor_stop_data JSONB DEFAULT '[]',
-    kegiatan_data JSONB DEFAULT '[]',
-    batch_data JSONB DEFAULT '[]',
-    notes TEXT,
-    created_by TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+<script>
+// ==================== SUPABASE CONFIGURATION ====================
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>  GANTI DENGAN CREDENTIAL SUPABASE ANDA DI BAWAH INI  <<<
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+const SUPABASE_URL = 'https://oicwgnlwbbquycyolsao.supabase.co';  // GANTI!
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pY3dnbmx3YmJxdXljeW9sc2FvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NDQwMjIsImV4cCI6MjA5MTEyMDAyMn0.L_gdrhyVeRerk3iLocnrZurbQtgGvQZpdbm43emEbv4';  // GANTI!
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
--- Create indexes
-CREATE INDEX idx_oee_records_date ON oee_records(date);
-CREATE INDEX idx_oee_records_machine_id ON oee_records(machine_id);
-CREATE INDEX idx_oee_records_shift ON oee_records(shift);
+// Inisialisasi Supabase client
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
--- Enable Row Level Security
-ALTER TABLE machines ENABLE ROW LEVEL SECURITY;
-ALTER TABLE library_kegiatan ENABLE ROW LEVEL SECURITY;
-ALTER TABLE oee_records ENABLE ROW LEVEL SECURITY;
-
--- Create policies for public access (atau sesuaikan dengan kebutuhan)
-CREATE POLICY "Enable all for authenticated users" ON machines
-    FOR ALL USING (true);
-
-CREATE POLICY "Enable all for authenticated users" ON library_kegiatan
-    FOR ALL USING (true);
-
-CREATE POLICY "Enable all for authenticated users" ON oee_records
-    FOR ALL USING (true);
-
--- Insert default library data
-INSERT INTO library_kegiatan (kode, items) VALUES 
-('1', ARRAY['SETUP MESIN', 'PERSIAPAN MATERIAL', 'PENGECEKAN AWAL']),
-('2', ARRAY['PRODUKSI NORMAL']),
-('3', ARRAY['MOTOR OVERLOAD', 'SENSOR ERROR', 'BELT PUTUS', 'POMPA OIL JAM', 'AIR CYLINDER ERROR']),
-('5', ARRAY['5R PAGI', 'CLEANING MESIN', 'OILING']),
-('6', ARRAY['PM HARIAN', 'PM MINGGUAN']),
-('7', ARRAY['CLEANING AKHIR', 'PEMBERSIHAN AREA']),
-('8', ARRAY['ISTIRAHAT', 'BRIEFING', 'START UP']),
-('9', ARRAY['TUNGGU MATERIAL', 'TUNGGU INSTRUKSI', 'ADMINISTRASI', 'TUNGGU SETTING'])
-ON CONFLICT (kode) DO UPDATE SET items = EXCLUDED.items;
-
--- Insert default machines
-INSERT INTO machines (id, machine_name, target_per_minute, pic, activities, minor_stop_items) VALUES 
-('1', 'INJEKSI 1', 2.5, 'BUDI', '{}', ARRAY['BOTTLE JAM', 'SENSOR ERROR', 'BELT SLIP']),
-('2', 'INJEKSI 2', 2.3, 'ANDRE', '{}', ARRAY['BOTTLE JAM', 'SENSOR ERROR', 'BELT SLIP']),
-('3', 'ASSY LINE A', 1.8, 'SUSAN', '{}', ARRAY['BOTTLE JAM', 'SENSOR ERROR', 'BELT SLIP'])
-ON CONFLICT (id) DO UPDATE SET 
-    machine_name = EXCLUDED.machine_name,
-    target_per_minute = EXCLUDED.target_per_minute,
-    pic = EXCLUDED.pic,
-    minor_stop_items = EXCLUDED.minor_stop_items;
+(function() {
+    'use strict';
+    
+    // ==================== KONFIGURASI ====================
+    const CONFIG = {
+        OEE_TARGET: 88,
+        OEE365_TARGET: 55,
+        A_TARGET: 93,
+        P_TARGET: 98,
+        Q_TARGET: 99,
+        A365_TARGET: 60,
+        MANAGEMENT_PASSWORD: 'admin123',
+        WR_REQUIRED_MINUTES: 180
+    };
+    
+    const KODE_TKL = {
+        '1': { name: 'PERSIAPAN AWAL (SETUP)', icon: '🔧', hasDuration: true, hasProblemAction: true },
+        '2': { name: 'JALAN PROSES (RUNNING)', icon: '⚙️', hasDuration: false, hasProblemAction: false },
+        '3': { name: 'LINESTOP MESIN', icon: '⚠️', hasDuration: false, hasWR: true, hasProblemAction: true },
+        '5': { name: 'AM ACTIVITY', icon: '🧹', hasDuration: true, hasProblemAction: true },
+        '6': { name: 'PM, CLOSE TAG', icon: '🔩', hasDuration: false, hasProblemAction: false },
+        '7': { name: 'CLEANING AKHIR', icon: '🧼', hasDuration: true, hasProblemAction: true },
+        '8': { name: 'ISTIRAHAT, BRIEFING', icon: '☕', hasDuration: true, hasProblemAction: true },
+        '9': { name: 'LINE STOP NON MESIN', icon: '⏸️', hasDuration: false, hasProblemAction: true }
+    };
+    
+    const SHIFTS = {
+        'SHIFT 1 (07:00-15:30)': { start: '07:00', end: '15:30', minutes: 510 },
+        'SHIFT 2 (15:20-22:50)': { start: '15:20', end: '22:50', minutes: 450 },
+        'SHIFT 3 (22:40-07:10)': { start: '22:40', end: '07:10', minutes: 530 },
+        'LONGSHIFT PAGI (07:00-19:00)': { start: '07:00', end: '19:00', minutes: 720 },
+        'LONGSHIFT MALAM (19:00-07:00)': { start: '19:00', end: '07:00', minutes: 720 }
+    };
+    
+    // ==================== STATE ====================
+    let currentPage = 'dashboard';
+    let allMachines = [];
+    let allOEERecords = [];
+    let libraryKegiatan = {};
+    let chartInstances = {};
+    let isManagementUnlocked = false;
+    let isLoading = false;
+    
+    // State untuk Input TKL
+    let kegiatanList = [];
+    let batches = [];
+    let selectedDate = new Date().toISOString().split('T')[0];
+    let selectedShift = '';
+    let selectedMachineId = '';
+    let selectedOperator = '';
+    let editMode = false;
+    let editingRecordId = null;
+    let minorStopList = [];
+    
+    let filters = {
+        startDate: getCurrentMonthStart(),
+        endDate: getCurrentMonthEnd(),
+        shift: 'all',
+        machine: 'all',
+        pic: 'all'
+    };
+    
+    // ==================== HELPER FUNCTIONS ====================
+    function getCurrentMonthStart() {
+        const date = new Date();
+        date.setDate(1);
+        return date.toISOString().split('T')[0];
+    }
+    
+    function getCurrentMonthEnd() {
+        const date = new Date();
+        date.setMonth(date.getMonth() + 1);
+        date.setDate(0);
+        return date.toISOString().split('T')[0];
+    }
+    
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        try {
+            return new Date(dateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        } catch { return dateStr; }
+    }
+    
+    function formatDateShort(dateStr) {
+        if (!dateStr) return '-';
+        try {
+            return new Date(dateStr).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' });
+        } catch { return dateStr; }
+    }
+    
+    function toUpper(str) { return str ? str.toString().toUpperCase() : ''; }
+    
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.style.borderLeftColor = type === 'success' ? '#10b981' : '#ef4444';
+        toast.innerHTML = `${type === 'success' ? '✅' : '❌'} ${message}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+    
+    function showModal(content, onClose = null) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `<div class="modal-content">${content}</div>`;
+        modal.onclick = (e) => { 
+            if (e.target === modal) {
+                modal.remove();
+                if (onClose) onClose();
+            }
+        };
+        document.body.appendChild(modal);
+        return modal;
+    }
+    
+    function closeModal() { 
+        const modal = document.querySelector('.modal-overlay');
+        if (modal) modal.remove();
+    }
+    
+    function getShiftMinutes(shiftKey) { return SHIFTS[shiftKey]?.minutes || 480; }
+    function getShiftStart() { return selectedShift ? SHIFTS[selectedShift]?.start || '07:00' : '07:00'; }
+    function getShiftEnd() { return selectedShift ? SHIFTS[selectedShift]?.end || '15:30' : '15:30'; }
+    function getNextStart() { return kegiatanList.length === 0 ? getShiftStart() : kegiatanList[kegiatanList.length - 1].jam; }
+    function addHour(time) { if (!time) return '08:00'; const [h, m] = time.split(':').map(Number); const nh = (h + 1) % 24; return `${nh.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`; }
+    function isTimeGreater(t1, t2) { if (!t1 || !t2) return false; const [h1,m1] = t1.split(':').map(Number); const [h2,m2] = t2.split(':').map(Number); return h1 > h2 || (h1 === h2 && m1 > m2); }
+    function hitungDurasi(dari, sampai) { if (!dari || !sampai) return 0; const [h1,m1] = dari.split(':').map(Number); const [h2,m2] = sampai.split(':').map(Number); return (h2*60+m2) - (h1*60+m1); }
+    
+    // ==================== SUPABASE CRUD OPERATIONS ====================
+    async function loadMachinesFromSupabase() {
+        try {
+            const { data, error } = await supabase.from('machines').select('*');
+            if (error) throw error;
+            if (data && data.length > 0) {
+                allMachines = data;
+            } else {
+                // Insert default machines if empty
+                const defaultMachines = [
+                    { id: '1', machine_name: 'INJEKSI 1', target_per_minute: 2.5, pic: 'BUDI', activities: {}, minor_stop_items: ['BOTTLE JAM', 'SENSOR ERROR', 'BELT SLIP'] },
+                    { id: '2', machine_name: 'INJEKSI 2', target_per_minute: 2.3, pic: 'ANDRE', activities: {}, minor_stop_items: ['BOTTLE JAM', 'SENSOR ERROR', 'BELT SLIP'] },
+                    { id: '3', machine_name: 'ASSY LINE A', target_per_minute: 1.8, pic: 'SUSAN', activities: {}, minor_stop_items: ['BOTTLE JAM', 'SENSOR ERROR', 'BELT SLIP'] }
+                ];
+                for (const m of defaultMachines) {
+                    await supabase.from('machines').upsert(m);
+                }
+                allMachines = defaultMachines;
+            }
+        } catch (error) {
+            console.error('Error loading machines:', error);
+            showToast('Gagal load data mesin', 'error');
+        }
+    }
+    
+    async function loadLibraryFromSupabase() {
+        try {
+            const { data, error } = await supabase.from('library_kegiatan').select('*');
+            if (error) throw error;
+            if (data && data.length > 0) {
+                libraryKegiatan = {};
+                data.forEach(item => {
+                    libraryKegiatan[item.kode] = item.items || [];
+                });
+            } else {
+                // Insert default library
+                const defaultLibrary = [
+                    { kode: '1', items: ['SETUP MESIN', 'PERSIAPAN MATERIAL', 'PENGECEKAN AWAL'] },
+                    { kode: '2', items: ['PRODUKSI NORMAL'] },
+                    { kode: '3', items: ['MOTOR OVERLOAD', 'SENSOR ERROR', 'BELT PUTUS', 'POMPA OIL JAM', 'AIR CYLINDER ERROR'] },
+                    { kode: '5', items: ['5R PAGI', 'CLEANING MESIN', 'OILING'] },
+                    { kode: '6', items: ['PM HARIAN', 'PM MINGGUAN'] },
+                    { kode: '7', items: ['CLEANING AKHIR', 'PEMBERSIHAN AREA'] },
+                    { kode: '8', items: ['ISTIRAHAT', 'BRIEFING', 'START UP'] },
+                    { kode: '9', items: ['TUNGGU MATERIAL', 'TUNGGU INSTRUKSI', 'ADMINISTRASI', 'TUNGGU SETTING'] }
+                ];
+                for (const lib of defaultLibrary) {
+                    await supabase.from('library_kegiatan').upsert(lib);
+                    libraryKegiatan[lib.kode] = lib.items;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading library:', error);
+            showToast('Gagal load library kegiatan', 'error');
+        }
+    }
+    
+    async function loadOEERecordsFromSupabase() {
+        try {
+            const { data, error } = await supabase.from('oee_records').select('*').order('date', { ascending: false });
+            if (error) throw error;
+            allOEERecords = data || [];
+        } catch (error) {
+            console.error('Error loading OEE records:', error);
+            showToast('Gagal load data OEE', 'error');
+        }
+    }
+    
+    async function saveMachineToSupabase(machine) {
+        try {
+            const { error } = await supabase.from('machines').upsert(machine);
+            if (error) throw error;
+        } catch (error) {
+            console.error('Error saving machine:', error);
+            throw error;
+        }
+    }
+    
+    async function saveLibraryToSupabase(kode, items) {
+        try {
+            const { error } = await supabase.from('library_kegiatan').upsert({ kode, items });
+            if (error) throw error;
+        } catch (error) {
+            console.error('Error saving library:', error);
+            throw error;
+        }
+    }
+    
+    async function saveOEERecordToSupabase(record) {
+        try {
+            const { error } = await supabase.from('oee_records').insert(record);
+            if (error) throw error;
+            allOEERecords.unshift(record);
+            showToast('Data OEE berhasil disimpan!');
+            return record;
+        } catch (error) {
+            console.error('Error saving OEE record:', error);
+            showToast('Gagal menyimpan data', 'error');
+            throw error;
+        }
+    }
+    
+    async function updateOEERecordInSupabase(id, record) {
+        try {
+            const { error } = await supabase.from('oee_records').update(record).eq('id', id);
+            if (error) throw error;
+            const index = allOEERecords.findIndex(r => r.id == id);
+            if (index !== -1) allOEERecords[index] = { ...record, id };
+            showToast('Data berhasil diupdate!');
+            return true;
+        } catch (error) {
+            console.error('Error updating OEE record:', error);
+            showToast('Gagal update data', 'error');
+            return false;
+        }
+    }
+    
+    async function deleteMachineFromSupabase(id) {
+        try {
+            const { error } = await supabase.from('machines').delete().eq('id', id);
+            if (error) throw error;
+            allMachines = allMachines.filter(m => m.id !== id);
+            showToast('Mesin dihapus');
+            return true;
+        } catch (error) {
+            console.error('Error deleting machine:', error);
+            showToast('Gagal hapus mesin', 'error');
+            return false;
+        }
+    }
+    
+    async function loadAllData() {
+        isLoading = true;
+        renderLoading();
+        await Promise.all([
+            loadMachinesFromSupabase(),
+            loadLibraryFromSupabase(),
+            loadOEERecordsFromSupabase()
+        ]);
+        isLoading = false;
+        renderApp();
+    }
+    
+    // ==================== PERHITUNGAN ====================
+    function hitungResume(kegiatanList, machineId) {
+        let totalODT = 0;
+        let totalRunning = 0;
+        let totalLineStopMesin = 0;
+        let totalLineStopNonMesin = 0;
+        let odtExceeds = [];
+        
+        const mesin = allMachines.find(m => m.id === machineId);
+        
+        kegiatanList.forEach(k => {
+            const dur = hitungDurasi(k.dari, k.jam);
+            
+            if (k.kode === 2) {
+                totalRunning += dur;
+            } 
+            else if (k.kode === 3) {
+                totalLineStopMesin += dur;
+            }
+            else if (k.kode === 9) {
+                totalLineStopNonMesin += dur;
+            }
+            else if ([1,5,6,7,8].includes(k.kode)) {
+                let standarDurasi = 0;
+                if (mesin?.activities && mesin.activities[k.kode]) {
+                    const kegiatan = mesin.activities[k.kode].find(a => a.nama === k.kegiatan);
+                    standarDurasi = kegiatan?.durasi || 0;
+                }
+                
+                if (standarDurasi > 0 && dur > standarDurasi) {
+                    totalODT += standarDurasi;
+                    const exceed = dur - standarDurasi;
+                    totalLineStopNonMesin += exceed;
+                    odtExceeds.push({
+                        item: k.kegiatan,
+                        standardTime: standarDurasi,
+                        actualTime: dur,
+                        exceed: exceed,
+                        problem: k.problem || '',
+                        action: k.action || ''
+                    });
+                    k.isExceed = true;
+                    k.exceedDuration = exceed;
+                } else {
+                    totalODT += dur;
+                    k.isExceed = false;
+                }
+            }
+        });
+        
+        return { totalODT, totalRunning, totalLineStopMesin, totalLineStopNonMesin, odtExceeds };
+    }
+    
+    function hitungAvailAndOEE(kegiatanList, batches, selectedShift, machineId) {
+        const resume = hitungResume(kegiatanList, machineId);
+        const jamKerja = getShiftMinutes(selectedShift);
+        const totalGood = batches.reduce((s, b) => s + (Number(b.good) || 0), 0);
+        const totalReject = batches.reduce((s, b) => s + (Number(b.reject) || 0), 0);
+        const mesin = allMachines.find(m => m.id === machineId);
+        const target = mesin?.target_per_minute || 1;
+        
+        const perf = (resume.totalRunning * target) > 0 ? (totalGood / (resume.totalRunning * target)) * 100 : 0;
+        const quality = totalGood > 0 ? ((totalGood - totalReject) / totalGood) * 100 : 100;
+        const denominatorAvail = jamKerja - resume.totalODT;
+        const avail = denominatorAvail > 0 ? (resume.totalRunning / denominatorAvail) * 100 : 0;
+        const avail365 = jamKerja > 0 ? (resume.totalRunning / jamKerja) * 100 : 0;
+        const oeeValue = (avail * perf * quality) / 10000;
+        const oee365 = (avail365 * perf * quality) / 10000;
+        const sisaJamKerja = jamKerja - resume.totalODT - resume.totalLineStopMesin - resume.totalLineStopNonMesin - resume.totalRunning;
+        
+        return { 
+            avail, avail365, perf, quality, 
+            oee: oeeValue, oee365, 
+            sisaJamKerja: Math.max(0, sisaJamKerja),
+            totalGood, totalReject,
+            odtExceeds: resume.odtExceeds
+        };
+    }
+    
+    // ==================== FUNGSI UNTUK TOP 10 CHARTS ====================
+    function getODTTop10(records) {
+        const odtStats = {};
+        records.forEach(record => {
+            if (record.odt_data && record.odt_data.length) {
+                record.odt_data.forEach(odt => {
+                    if (odt.checked) {
+                        const actual = parseFloat(odt.actualTime) || 0;
+                        const standard = parseFloat(odt.standardTime) || 0;
+                        const used = Math.min(actual, standard);
+                        if (used > 0) {
+                            if (!odtStats[odt.name]) odtStats[odt.name] = 0;
+                            odtStats[odt.name] += used;
+                        }
+                    }
+                });
+            }
+        });
+        return Object.entries(odtStats).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);
+    }
+    
+    function getLineStopMesinTop10(records) {
+        const lsmStats = {};
+        records.forEach(record => {
+            if (record.line_stop_mesin_data && record.line_stop_mesin_data.length) {
+                record.line_stop_mesin_data.forEach(ls => {
+                    const dur = parseFloat(ls.duration) || 0;
+                    if (dur > 0) {
+                        if (!lsmStats[ls.item]) lsmStats[ls.item] = 0;
+                        lsmStats[ls.item] += dur;
+                    }
+                });
+            }
+        });
+        return Object.entries(lsmStats).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);
+    }
+    
+    function getLineStopNonMesinTop10(records) {
+        const lsnStats = {};
+        records.forEach(record => {
+            if (record.line_stop_non_mesin_data && record.line_stop_non_mesin_data.length) {
+                record.line_stop_non_mesin_data.forEach(ls => {
+                    const dur = parseFloat(ls.duration) || 0;
+                    if (dur > 0) {
+                        if (!lsnStats[ls.item]) lsnStats[ls.item] = 0;
+                        lsnStats[ls.item] += dur;
+                    }
+                });
+            }
+        });
+        return Object.entries(lsnStats).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);
+    }
+    
+    function getMinorStopTop10(records) {
+        const msStats = {};
+        records.forEach(record => {
+            if (record.minor_stop_data && record.minor_stop_data.length) {
+                record.minor_stop_data.forEach(ms => {
+                    const freq = parseFloat(ms.frequency) || 0;
+                    if (freq > 0) {
+                        if (!msStats[ms.item]) msStats[ms.item] = 0;
+                        msStats[ms.item] += freq;
+                    }
+                });
+            }
+        });
+        return Object.entries(msStats).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10);
+    }
+    
+    function getFilteredRecords() {
+        return allOEERecords.filter(r => {
+            if (!r.date) return false;
+            const rDate = new Date(r.date);
+            const sDate = new Date(filters.startDate);
+            const eDate = new Date(filters.endDate);
+            eDate.setHours(23, 59, 59);
+            if (!(rDate >= sDate && rDate <= eDate)) return false;
+            if (filters.shift !== 'all' && r.shift !== filters.shift) return false;
+            if (filters.machine !== 'all' && r.machine_name !== filters.machine) return false;
+            if (filters.pic !== 'all' && r.pic !== filters.pic) return false;
+            return true;
+        });
+    }
+    
+    function calculateMetrics(records) {
+        if (!records.length) return { avgOEEActual: 0, avgOEE365: 0, totalOutput: 0 };
+        const avgOEEActual = records.reduce((s, r) => s + (r.oee_actual || 0), 0) / records.length;
+        const avgOEE365 = records.reduce((s, r) => s + (r.oee_365 || 0), 0) / records.length;
+        const totalOutput = records.reduce((s, r) => s + (r.actual_output || 0), 0);
+        return { avgOEEActual, avgOEE365, totalOutput };
+    }
+    
+    // ==================== CHART FUNCTIONS ====================
+    function getMonthlyTrendData(records) {
+        const currentYear = new Date().getFullYear();
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const monthlyData = Array(12).fill().map(() => []);
+        records.forEach(r => {
+            if (!r.date) return;
+            const recordYear = new Date(r.date).getFullYear();
+            if (recordYear !== currentYear) return;
+            const month = new Date(r.date).getMonth();
+            monthlyData[month].push(r.oee_actual || 0);
+        });
+        const monthlyAvg = monthlyData.map(arr => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null);
+        return { months: monthNames, values: monthlyAvg };
+    }
+    
+    function getPerMachineData(records) {
+        const machineStats = {};
+        records.forEach(r => {
+            if (!r.machine_name) return;
+            if (!machineStats[r.machine_name]) machineStats[r.machine_name] = { total: 0, count: 0 };
+            machineStats[r.machine_name].total += r.oee_actual || 0;
+            machineStats[r.machine_name].count += 1;
+        });
+        return Object.entries(machineStats).map(([name, stats]) => ({ name, avg: stats.total / stats.count })).sort((a, b) => b.avg - a.avg);
+    }
+    
+    function getAPQData(records) {
+        const avgA = records.length ? records.reduce((s, r) => s + (r.availability_actual || 0), 0) / records.length : 0;
+        const avgP = records.length ? records.reduce((s, r) => s + (r.performance || 0), 0) / records.length : 0;
+        const avgQ = records.length ? records.reduce((s, r) => s + (r.quality || 0), 0) / records.length : 0;
+        const avgA365 = records.length ? records.reduce((s, r) => s + (r.availability_365 || 0), 0) / records.length : 0;
+        return { avgA, avgP, avgQ, avgA365 };
+    }
+    
+    function getOperatorPerformance(records) {
+        const picStats = {};
+        records.forEach(r => {
+            if (!r.pic) return;
+            if (!picStats[r.pic]) picStats[r.pic] = { totalOEE: 0, totalOutput: 0, count: 0 };
+            picStats[r.pic].totalOEE += r.oee_actual || 0;
+            picStats[r.pic].totalOutput += r.actual_output || 0;
+            picStats[r.pic].count += 1;
+        });
+        return Object.entries(picStats).map(([pic, stats]) => ({ pic, avgOEE: stats.totalOEE / stats.count, totalOutput: stats.totalOutput, count: stats.count })).sort((a, b) => b.avgOEE - a.avgOEE).slice(0, 10);
+    }
+    
+    function destroyAllCharts() {
+        Object.values(chartInstances).forEach(chart => { if (chart && chart.destroy) chart.destroy(); });
+        chartInstances = {};
+    }
+    
+    function renderTop10Charts() {
+        const records = getFilteredRecords();
+        
+        setTimeout(() => {
+            const odtCtx = document.getElementById('chart-odt-top10');
+            if (odtCtx) {
+                const odtData = getODTTop10(records);
+                chartInstances.odtTop10 = new Chart(odtCtx, {
+                    type: 'bar',
+                    data: { labels: odtData.map(d => d.name.length > 25 ? d.name.substring(0, 22) + '...' : d.name), datasets: [{ label: 'Total Durasi (menit)', data: odtData.map(d => d.total), backgroundColor: '#f59e0b' }] },
+                    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw.toFixed(1)} menit` } } } }
+                });
+            }
+            
+            const lsmCtx = document.getElementById('chart-lsm-top10');
+            if (lsmCtx) {
+                const lsmData = getLineStopMesinTop10(records);
+                chartInstances.lsmTop10 = new Chart(lsmCtx, {
+                    type: 'bar',
+                    data: { labels: lsmData.map(d => d.name.length > 25 ? d.name.substring(0, 22) + '...' : d.name), datasets: [{ label: 'Total Durasi (menit)', data: lsmData.map(d => d.total), backgroundColor: '#ef4444' }] },
+                    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw.toFixed(1)} menit` } } } }
+                });
+            }
+            
+            const lsnCtx = document.getElementById('chart-lsn-top10');
+            if (lsnCtx) {
+                const lsnData = getLineStopNonMesinTop10(records);
+                chartInstances.lsnTop10 = new Chart(lsnCtx, {
+                    type: 'bar',
+                    data: { labels: lsnData.map(d => d.name.length > 25 ? d.name.substring(0, 22) + '...' : d.name), datasets: [{ label: 'Total Durasi (menit)', data: lsnData.map(d => d.total), backgroundColor: '#f97316' }] },
+                    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw.toFixed(1)} menit` } } } }
+                });
+            }
+            
+            const msCtx = document.getElementById('chart-ms-top10');
+            if (msCtx) {
+                const msData = getMinorStopTop10(records);
+                chartInstances.msTop10 = new Chart(msCtx, {
+                    type: 'bar',
+                    data: { labels: msData.map(d => d.name.length > 25 ? d.name.substring(0, 22) + '...' : d.name), datasets: [{ label: 'Total Frekuensi (kali)', data: msData.map(d => d.total), backgroundColor: '#8b5cf6' }] },
+                    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw} kali` } } } }
+                });
+            }
+        }, 100);
+    }
+    
+    function renderCharts() {
+        const records = getFilteredRecords();
+        destroyAllCharts();
+        
+        setTimeout(() => {
+            const trendCtx = document.getElementById('chart-trend');
+            if (trendCtx) {
+                const { months, values } = getMonthlyTrendData(records);
+                chartInstances.trend = new Chart(trendCtx, {
+                    type: 'line',
+                    data: { labels: months, datasets: [{ label: 'Rata-rata OEE', data: values, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.1)', tension: 0.4, fill: true, pointRadius: 5, spanGaps: true }, { label: `Target ${CONFIG.OEE_TARGET}%`, data: Array(12).fill(CONFIG.OEE_TARGET), borderColor: '#10b981', borderDash: [5, 5], pointRadius: 0, fill: false }] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } } }
+                });
+            }
+            
+            const perMachineCtx = document.getElementById('chart-per-machine');
+            if (perMachineCtx) {
+                const machineData = getPerMachineData(records);
+                chartInstances.perMachine = new Chart(perMachineCtx, {
+                    type: 'bar',
+                    data: { labels: machineData.map(d => d.name), datasets: [{ label: 'Avg OEE Actual', data: machineData.map(d => d.avg), backgroundColor: machineData.map(d => d.avg >= CONFIG.OEE_TARGET ? '#10b981' : '#ef4444') }] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } } }
+                });
+            }
+            
+            const apqCtx = document.getElementById('chart-apq');
+            if (apqCtx) {
+                const { avgA, avgP, avgQ, avgA365 } = getAPQData(records);
+                chartInstances.apq = new Chart(apqCtx, {
+                    type: 'bar',
+                    data: { labels: ['Availability', 'Performance', 'Quality', 'Availability 365'], datasets: [{ data: [avgA, avgP, avgQ, avgA365], backgroundColor: [avgA >= CONFIG.A_TARGET ? '#10b981' : '#ef4444', avgP >= CONFIG.P_TARGET ? '#10b981' : '#ef4444', avgQ >= CONFIG.Q_TARGET ? '#10b981' : '#ef4444', avgA365 >= CONFIG.A365_TARGET ? '#10b981' : '#ef4444'] }] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } }, plugins: { legend: { display: false } } }
+                });
+            }
+            
+            const operatorCtx = document.getElementById('chart-operator');
+            if (operatorCtx) {
+                const operatorData = getOperatorPerformance(records);
+                chartInstances.operator = new Chart(operatorCtx, {
+                    type: 'bar',
+                    data: { labels: operatorData.map(d => d.pic), datasets: [{ label: 'Avg OEE Actual', data: operatorData.map(d => d.avgOEE), backgroundColor: operatorData.map(d => d.avgOEE >= CONFIG.OEE_TARGET ? '#10b981' : '#ef4444') }] },
+                    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, max: 100 } } }
+                });
+            }
+            
+            renderTop10Charts();
+        }, 100);
+    }
+    
+    // ==================== SHOW RECORD DETAIL ====================
+    function showRecordDetail(record) {
+        let odtItemsHTML = '';
+        let totalODT = 0;
+        if (record.odt_data && record.odt_data.length) {
+            record.odt_data.forEach(odt => {
+                if (odt.checked) {
+                    const actual = parseFloat(odt.actualTime) || 0;
+                    const standard = parseFloat(odt.standardTime) || 0;
+                    const used = Math.min(actual, standard);
+                    totalODT += used;
+                    const exceed = actual > standard ? actual - standard : 0;
+                    odtItemsHTML += `<div class="detail-item"><div class="detail-item-label">${odt.name}</div><div class="detail-item-value">${used.toFixed(1)} menit (Standar: ${standard} menit)</div>${exceed > 0 ? `<div style="color: #f59e0b; font-size: 12px; margin-top: 4px;">⚠️ Exceed: +${exceed.toFixed(1)} menit (masuk LSNM)</div>` : ''}${odt.problem ? `<div class="text-xs text-gray-500 mt-1">⚠️ Problem: ${odt.problem}</div>` : ''}${odt.action ? `<div class="text-xs text-gray-500 mt-1">🔧 Action: ${odt.action}</div>` : ''}</div>`;
+                }
+            });
+        }
+        
+        let totalLSM = 0;
+        let lsmItemsHTML = '';
+        if (record.line_stop_mesin_data && record.line_stop_mesin_data.length) {
+            record.line_stop_mesin_data.forEach(ls => {
+                const dur = parseFloat(ls.duration) || 0;
+                totalLSM += dur;
+                lsmItemsHTML += `<div class="detail-item">
+                    <div class="detail-item-label">${ls.item}</div>
+                    <div class="detail-item-value">${dur.toFixed(1)} menit</div>
+                    ${ls.no_wr ? `<div class="text-xs text-gray-500 mt-1">📋 No WR: ${ls.no_wr}</div>` : ''}
+                    ${ls.problem ? `<div class="text-xs text-gray-500 mt-1">⚠️ Problem: ${ls.problem}</div>` : ''}
+                    ${ls.action ? `<div class="text-xs text-gray-500 mt-1">🔧 Action: ${ls.action}</div>` : ''}
+                </div>`;
+            });
+        }
+        
+        let totalLSNM = 0;
+        let lsnmItemsHTML = '';
+        if (record.line_stop_non_mesin_data && record.line_stop_non_mesin_data.length) {
+            record.line_stop_non_mesin_data.forEach(ls => {
+                const dur = parseFloat(ls.duration) || 0;
+                totalLSNM += dur;
+                lsnmItemsHTML += `<div class="detail-item">
+                    <div class="detail-item-label">${ls.item}</div>
+                    <div class="detail-item-value">${dur.toFixed(1)} menit</div>
+                    ${ls.problem ? `<div class="text-xs text-gray-500 mt-1">⚠️ Problem: ${ls.problem}</div>` : ''}
+                    ${ls.action ? `<div class="text-xs text-gray-500 mt-1">🔧 Action: ${ls.action}</div>` : ''}
+                </div>`;
+            });
+        }
+        
+        let msItemsHTML = '';
+        if (record.minor_stop_data && record.minor_stop_data.length) {
+            record.minor_stop_data.forEach(ms => {
+                msItemsHTML += `<div class="detail-item"><div class="detail-item-label">${ms.item}</div><div class="detail-item-value">${ms.frequency} kali</div>${ms.problem ? `<div class="text-xs text-gray-500 mt-1">⚠️ Problem: ${ms.problem}</div>` : ''}${ms.action ? `<div class="text-xs text-gray-500 mt-1">🔧 Action: ${ms.action}</div>` : ''}</div>`;
+            });
+        }
+        
+        const modalContent = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 24px; font-weight: 700; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">📋 Detail OEE Record</h3>
+                <button class="btn btn-secondary" onclick="window.closeModal()" style="padding: 8px 16px;">✕ Tutup</button>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px;">
+                <div class="detail-item"><div class="detail-item-label">Tanggal</div><div class="detail-item-value">${formatDate(record.date)}</div></div>
+                <div class="detail-item"><div class="detail-item-label">Shift</div><div class="detail-item-value">${record.shift || '-'}</div></div>
+                <div class="detail-item"><div class="detail-item-label">Mesin</div><div class="detail-item-value">${record.machine_name || '-'}</div></div>
+                <div class="detail-item"><div class="detail-item-label">Operator</div><div class="detail-item-value">${record.pic || '-'}</div></div>
+                <div class="detail-item"><div class="detail-item-label">Batch</div><div class="detail-item-value">${record.batch_number || '-'}</div></div>
+                <div class="detail-item"><div class="detail-item-label">Output / Reject</div><div class="detail-item-value">${(record.actual_output || 0).toLocaleString()} / ${record.reject || 0}</div></div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px;">
+                <div class="detail-item"><div class="detail-item-label">Availability</div><div class="detail-item-value">${(record.availability_actual || 0).toFixed(1)}%</div></div>
+                <div class="detail-item"><div class="detail-item-label">Performance</div><div class="detail-item-value">${(record.performance || 0).toFixed(1)}%</div></div>
+                <div class="detail-item"><div class="detail-item-label">Quality</div><div class="detail-item-value">${(record.quality || 0).toFixed(1)}%</div></div>
+                <div class="detail-item"><div class="detail-item-label">OEE Actual</div><div class="detail-item-value ${(record.oee_actual || 0) >= CONFIG.OEE_TARGET ? 'badge-success' : 'badge-danger'}">${(record.oee_actual || 0).toFixed(1)}%</div></div>
+                <div class="detail-item"><div class="detail-item-label">OEE 365</div><div class="detail-item-value">${(record.oee_365 || 0).toFixed(1)}%</div></div>
+                <div class="detail-item"><div class="detail-item-label">Minor Stop</div><div class="detail-item-value">${record.minor_stop_count || 0} kali</div></div>
+            </div>
+            ${odtItemsHTML ? `<div style="margin-bottom: 24px;"><div style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">⏱️ ODT - Total: ${totalODT.toFixed(1)} menit</div>${odtItemsHTML}</div>` : ''}
+            ${lsmItemsHTML ? `<div style="margin-bottom: 24px;"><div style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">🔧 Line Stop Mesin - Total: ${totalLSM.toFixed(1)} menit</div>${lsmItemsHTML}</div>` : ''}
+            ${lsnmItemsHTML ? `<div style="margin-bottom: 24px;"><div style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">⚠️ Line Stop Non Mesin - Total: ${totalLSNM.toFixed(1)} menit</div>${lsnmItemsHTML}</div>` : ''}
+            ${msItemsHTML ? `<div style="margin-bottom: 24px;"><div style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">⏸️ Minor Stop - Total: ${record.minor_stop_count || 0} kali</div>${msItemsHTML}</div>` : ''}
+            <div class="flex justify-end"><button class="btn btn-primary" onclick="window.closeModal()">Tutup</button></div>
+        `;
+        showModal(modalContent);
+    }
+    
+    // ==================== RENDER DASHBOARD ====================
+    function renderDashboard() {
+        const records = getFilteredRecords();
+        const metrics = calculateMetrics(records);
+        const uniquePICs = [...new Set(allOEERecords.map(r => r.pic).filter(Boolean))];
+        const uniqueMachines = [...new Set(allOEERecords.map(r => r.machine_name).filter(Boolean))];
+        
+        return `
+            <div class="gradient-bg text-white p-6 shadow-lg">
+                <div class="max-w-7xl mx-auto flex justify-between items-center flex-wrap gap-4">
+                    <div><h1 class="text-2xl font-bold">OEE Digital Monitoring System PT. GOF</h1><p class="text-white/80 text-sm mt-1">Created by MSTD GOF | Powered by Supabase</p></div>
+                    <div class="text-right"><p class="text-sm font-semibold">${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p><p class="text-xs text-white/70">${new Date().toLocaleTimeString('id-ID')}</p></div>
+                </div>
+            </div>
+            <div class="max-w-7xl mx-auto px-4 py-6">
+                <div class="nav-tabs">
+                    <div class="nav-tab ${currentPage === 'dashboard' ? 'active' : ''}" onclick="window.navigateTo('dashboard')">📊 DASHBOARD</div>
+                    <div class="nav-tab ${currentPage === 'input' ? 'active' : ''}" onclick="window.navigateTo('input')">✏️ INPUT TKL</div>
+                    <div class="nav-tab ${currentPage === 'management' ? 'active' : ''}" onclick="window.navigateTo('management')">⚙️ MANAGEMENT</div>
+                    <div class="nav-tab ${currentPage === 'audit' ? 'active' : ''}" onclick="window.navigateTo('audit')">📋 AUDIT TRAIL</div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">🔍 Filter Data</div>
+                    <div class="filter-section">
+                        <div><label class="block text-xs mb-1">Start Date</label><input type="date" class="input-field" value="${filters.startDate}" onchange="window.updateFilter('startDate', this.value)"></div>
+                        <div><label class="block text-xs mb-1">End Date</label><input type="date" class="input-field" value="${filters.endDate}" onchange="window.updateFilter('endDate', this.value)"></div>
+                        <div><label class="block text-xs mb-1">Shift</label><select class="input-field" onchange="window.updateFilter('shift', this.value)"><option value="all">Semua Shift</option>${Object.keys(SHIFTS).map(s => `<option value="${s}" ${filters.shift === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+                        <div><label class="block text-xs mb-1">Machine</label><select class="input-field" onchange="window.updateFilter('machine', this.value)"><option value="all">Semua Mesin</option>${uniqueMachines.map(m => `<option value="${m}" ${filters.machine === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
+                        <div><label class="block text-xs mb-1">PIC</label><select class="input-field" onchange="window.updateFilter('pic', this.value)"><option value="all">Semua Operator</option>${uniquePICs.map(p => `<option value="${p}" ${filters.pic === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="scorecard ${metrics.avgOEEActual >= CONFIG.OEE_TARGET ? 'good' : 'bad'}"><div class="scorecard-label">Rata-rata OEE</div><div class="scorecard-value">${metrics.avgOEEActual.toFixed(1)}%</div><div class="text-xs">Target: ${CONFIG.OEE_TARGET}%</div></div>
+                    <div class="scorecard ${metrics.avgOEE365 >= CONFIG.OEE365_TARGET ? 'good' : 'bad'}"><div class="scorecard-label">Rata-rata OEE 365</div><div class="scorecard-value">${metrics.avgOEE365.toFixed(1)}%</div><div class="text-xs">Target: ${CONFIG.OEE365_TARGET}%</div></div>
+                    <div class="scorecard"><div class="scorecard-label">Total Output</div><div class="scorecard-value text-blue-600">${metrics.totalOutput.toLocaleString()}</div><div class="text-xs">${records.length} Records</div></div>
+                    <div class="scorecard"><div class="scorecard-label">Mesin Aktif</div><div class="scorecard-value text-green-600">${allMachines.length}</div><div class="text-xs">Total Machines</div></div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="card"><div class="card-header">📈 AVG OEE per Bulan (Tren)</div><div class="chart-container"><canvas id="chart-trend"></canvas></div></div>
+                    <div class="card"><div class="card-header">🎯 OEE Actual per Machine</div><div class="chart-container"><canvas id="chart-per-machine"></canvas></div></div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="card"><div class="card-header">📊 A-P-Q-A365 Breakdown</div><div class="chart-container"><canvas id="chart-apq"></canvas></div></div>
+                    <div class="card"><div class="card-header">👨‍🔧 Operator Performance (OEE)</div><div class="chart-container-horizontal"><canvas id="chart-operator"></canvas></div></div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card"><div class="card-header">📊 ODT Top 10 (Kode 1,5,6,7,8)</div><div class="chart-container-horizontal"><canvas id="chart-odt-top10"></canvas></div></div>
+                    <div class="card"><div class="card-header">🔧 Line Stop Mesin Top 10 (Kode 3)</div><div class="chart-container-horizontal"><canvas id="chart-lsm-top10"></canvas></div></div>
+                    <div class="card"><div class="card-header">⚠️ Line Stop Non Mesin Top 10</div><div class="chart-container-horizontal"><canvas id="chart-lsn-top10"></canvas></div></div>
+                    <div class="card"><div class="card-header">⏸️ Minor Stop Top 10</div><div class="chart-container-horizontal"><canvas id="chart-ms-top10"></canvas></div></div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">📋 OEE History <span class="text-xs">(Klik baris untuk detail)</span></div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead> <tr><th>Date</th><th>Shift</th><th>Machine</th><th>PIC</th><th>Batch</th><th>Output</th><th>Reject</th><th>A%</th><th>P%</th><th>Q%</th><th>OEE%</th><th>Notes</th> </thead>
+                            <tbody>
+                                ${records.slice(0, 20).map(r => `<tr class="clickable-row" onclick='window.showRecordDetail(${JSON.stringify(r).replace(/'/g, "\\'")})'>
+                                    <td>${formatDateShort(r.date)}</div></div></div></td>
+                                    <td>${r.shift || '-'}</td>
+                                    <td><strong>${r.machine_name || '-'}</strong></td>
+                                    <td>${r.pic || '-'}</td>
+                                    <td>${r.batch_number || '-'}</td>
+                                    <td>${(r.actual_output || 0).toLocaleString()}</td>
+                                    <td>${r.reject || 0}</div></div></div></td>
+                                    <td class="${(r.availability_actual || 0) >= CONFIG.A_TARGET ? 'status-good' : 'status-bad'}">${(r.availability_actual || 0).toFixed(1)}%</div></div></div></td>
+                                    <td class="${(r.performance || 0) >= CONFIG.P_TARGET ? 'status-good' : 'status-bad'}">${(r.performance || 0).toFixed(1)}%</div></div></div></td>
+                                    <td class="${(r.quality || 0) >= CONFIG.Q_TARGET ? 'status-good' : 'status-bad'}">${(r.quality || 0).toFixed(1)}%</div></div></div></td>
+                                    <td class="${(r.oee_actual || 0) >= CONFIG.OEE_TARGET ? 'status-good' : 'status-bad'}">${(r.oee_actual || 0).toFixed(1)}%</div></div></div></td>
+                                    <td class="max-w-[150px] truncate">${r.notes || '-'}</div></div></div></td>
+                                </tr>`).join('')}
+                                ${records.length === 0 ? '<tr><td colspan="12" class="text-center py-8">Belum ada数据</div></div></div></td>' : ''}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // ==================== RENDER INPUT PAGE ====================
+    function renderInputPage() {
+        const mesinTerpilih = allMachines.find(m => m.id === selectedMachineId);
+        const oeeData = selectedShift && selectedMachineId ? hitungAvailAndOEE(kegiatanList, batches, selectedShift, selectedMachineId) : { avail: 0, avail365: 0, perf: 0, quality: 0, oee: 0, oee365: 0, sisaJamKerja: 0, totalGood: 0, totalReject: 0, odtExceeds: [] };
+        const resume = selectedMachineId ? hitungResume(kegiatanList, selectedMachineId) : { totalODT: 0, totalRunning: 0, totalLineStopMesin: 0, totalLineStopNonMesin: 0, odtExceeds: [] };
+        
+        const odtExceedsHTML = resume.odtExceeds.length > 0 ? `
+            <div class="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-300">
+                <p class="text-sm text-orange-700 font-semibold"><i class="fas fa-exclamation-triangle"></i> ODT Exceed (Otomatis masuk ke Line Stop Non Mesin):</p>
+                ${resume.odtExceeds.map(ex => `<div class="text-xs text-orange-600 mt-1">• ${ex.item}: ${ex.actualTime.toFixed(1)} menit (Standar ${ex.standardTime} menit) → Kelebihan ${ex.exceed.toFixed(1)} menit masuk LSNM</div>`).join('')}
+            </div>
+        ` : '';
+        
+        return `
+            <div class="gradient-bg text-white p-6 shadow-lg">
+                <div class="max-w-7xl mx-auto flex justify-between items-center flex-wrap gap-4">
+                    <div><h1 class="text-2xl font-bold">OEE Digital Monitoring System PT. GOF</h1><p class="text-white/80 text-sm mt-1">Created by MSTD GOF | Powered by Supabase</p></div>
+                    <div class="text-right"><p class="text-sm font-semibold">${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p></div>
+                </div>
+            </div>
+            <div class="max-w-7xl mx-auto px-4 py-6">
+                <div class="nav-tabs">
+                    <div class="nav-tab" onclick="window.navigateTo('dashboard')">📊 DASHBOARD</div>
+                    <div class="nav-tab active">✏️ INPUT TKL</div>
+                    <div class="nav-tab" onclick="window.navigateTo('management')">⚙️ MANAGEMENT</div>
+                    <div class="nav-tab" onclick="window.navigateTo('audit')">📋 AUDIT TRAIL</div>
+                </div>
+                
+                ${editMode ? `<div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 rounded-lg"><p><i class="fas fa-edit"></i> <span class="edit-mode-badge">EDIT MODE</span> Sedang mengedit data ID: ${editingRecordId}</p></div>` : ''}
+                
+                <div class="card"><h3 class="font-bold mb-4">📋 INFORMASI SHIFT</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div><label class="text-xs">TANGGAL</label><input type="date" id="input-date" class="input-field" value="${selectedDate}" onchange="window.updateSelectedDate(this.value)"></div>
+                        <div><label class="text-xs">SHIFT</label><select id="input-shift" class="input-field" onchange="window.updateShiftValue(this.value)"><option value="">PILIH SHIFT</option>${Object.keys(SHIFTS).map(s => `<option value="${s}" ${selectedShift === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+                        <div><label class="text-xs">MESIN</label><select id="input-machine" class="input-field" onchange="window.updateMachineValue(this.value)"><option value="">PILIH MESIN</option>${allMachines.map(m => `<option value="${m.id}" ${selectedMachineId === m.id ? 'selected' : ''}>${m.machine_name}</option>`).join('')}</select></div>
+                        <div><label class="text-xs">OPERATOR</label><input type="text" id="input-operator" class="input-field" value="${selectedOperator}" placeholder="NAMA OPERATOR" onchange="window.updateOperatorValue(this.value)"></div>
+                    </div>
+                </div>
+                
+                <div class="card"><div class="flex justify-between items-center mb-4"><h3 class="font-bold">⏱️ KEGIATAN</h3><button class="btn btn-primary text-sm" onclick="window.showTambahKegiatanModal()" ${!mesinTerpilih ? 'disabled' : ''}><i class="fas fa-plus"></i> TAMBAH</button></div>
+                    <div id="kegiatan-list-container">
+                        ${kegiatanList.length === 0 ? '<div class="text-center py-8 bg-gray-50 rounded-lg"><p class="text-gray-400">BELUM ADA KEGIATAN</p></div>' : kegiatanList.map((k, i) => {
+                            const durasi = hitungDurasi(k.dari, k.jam);
+                            const isLSM = k.kode === 3;
+                            const isLSNM = k.kode === 9;
+                            const isODTWithExceed = [1,5,7,8].includes(k.kode) && k.isExceed;
+                            
+                            return `<div class="timeline-card">
+                                <div class="kode-badge kode-${k.kode}">${k.kode}</div>
+                                <div class="timeline-card-details">
+                                    <div><span class="font-semibold">${k.dari} - ${k.jam}</span> <span class="text-xs bg-gray-200 px-2 py-1 rounded">${KODE_TKL[k.kode]?.icon} ${KODE_TKL[k.kode]?.name}</span></div>
+                                    <div class="text-sm font-medium mt-1">${k.kegiatan}</div>
+                                    <div class="text-xs text-gray-500">Durasi: ${durasi} menit</div>
+                                    ${isLSM && k.no_wr ? `<div class="text-xs text-blue-600 mt-1">📋 No WR: ${k.no_wr}</div>` : ''}
+                                    ${isLSM && k.problem ? `<div class="text-xs text-orange-600 mt-1">⚠️ Problem: ${k.problem}</div>` : ''}
+                                    ${isLSM && k.action ? `<div class="text-xs text-green-600 mt-1">🔧 Action: ${k.action}</div>` : ''}
+                                    ${isLSNM && k.problem ? `<div class="text-xs text-orange-600 mt-1">⚠️ Problem: ${k.problem}</div>` : ''}
+                                    ${isLSNM && k.action ? `<div class="text-xs text-green-600 mt-1">🔧 Action: ${k.action}</div>` : ''}
+                                    ${isODTWithExceed && k.problem ? `<div class="text-xs text-orange-600 mt-1">⚠️ Problem (Exceed): ${k.problem}</div>` : ''}
+                                    ${isODTWithExceed && k.action ? `<div class="text-xs text-green-600 mt-1">🔧 Action (Exceed): ${k.action}</div>` : ''}
+                                    ${k.isExceed ? `<div class="text-xs text-red-500 mt-1">⚠️ Melebihi standar! Kelebihan ${k.exceedDuration} menit masuk LSNM</div>` : ''}
+                                </div>
+                                <div class="timeline-card-actions">
+                                    <button class="text-blue-500" onclick="window.editKegiatan(${i})" title="Edit"><i class="fas fa-edit"></i></button>
+                                    <button class="text-red-500" onclick="window.hapusKegiatan(${i})" title="Hapus"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                    ${odtExceedsHTML}
+                </div>
+                
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="resume-card"><div class="text-xs text-gray-500">TOTAL ODT</div><div class="resume-value text-blue-600" id="total-odt">${resume.totalODT} MIN</div></div>
+                    <div class="resume-card"><div class="text-xs text-gray-500">RUNNING</div><div class="resume-value text-green-600" id="total-running">${resume.totalRunning} MIN</div></div>
+                    <div class="resume-card"><div class="text-xs text-gray-500">LS MESIN</div><div class="resume-value text-red-600" id="total-lsm">${resume.totalLineStopMesin} MIN</div></div>
+                    <div class="resume-card"><div class="text-xs text-gray-500">LS NON MESIN</div><div class="resume-value text-orange-600" id="total-lsnm">${resume.totalLineStopNonMesin} MIN</div></div>
+                </div>
+                
+                <div class="sisa-jam-card"><div class="flex justify-between"><div><div class="text-xs text-sky-700">SISA JAM KERJA</div><div class="text-2xl font-bold text-sky-800" id="sisa-jam">${Math.max(0, oeeData.sisaJamKerja)} MIN</div></div><div><div class="text-xs text-sky-600">TOTAL SHIFT</div><div class="text-lg font-bold text-sky-700" id="total-shift">${getShiftMinutes(selectedShift)} MIN</div></div></div></div>
+                
+                <div class="card"><h3 class="font-bold mb-4">📦 BATCH & OUTPUT</h3>
+                    <div id="batch-container" class="space-y-3 mb-4">${batches.map((b, i) => `<div class="flex gap-3 p-4 bg-gray-50 rounded-xl"><input type="text" class="input-field flex-1" value="${b.batch || ''}" placeholder="NO. BATCH" onchange="window.updateBatch(${i}, 'batch', this.value)"><input type="number" class="input-field w-32" value="${b.good || 0}" placeholder="GOOD" onchange="window.updateBatch(${i}, 'good', this.value)"><input type="number" class="input-field w-32" value="${b.reject || 0}" placeholder="REJECT" onchange="window.updateBatch(${i}, 'reject', this.value)"><button class="btn btn-secondary" onclick="window.hapusBatch(${i})"><i class="fas fa-trash"></i></button></div>`).join('')}</div>
+                    <button class="btn btn-secondary w-full" onclick="window.tambahBatch()"><i class="fas fa-plus"></i> TAMBAH BATCH</button>
+                    <div class="grid grid-cols-2 gap-4 mt-4"><div class="bg-blue-50 p-4 rounded-xl text-center"><div class="text-xs text-blue-600">TOTAL GOOD</div><div class="text-2xl font-bold text-blue-700" id="total-good">${batches.reduce((s,b)=>s+(Number(b.good)||0),0)}</div></div><div class="bg-red-50 p-4 rounded-xl text-center"><div class="text-xs text-red-600">TOTAL REJECT</div><div class="text-2xl font-bold text-red-700" id="total-reject">${batches.reduce((s,b)=>s+(Number(b.reject)||0),0)}</div></div></div>
+                </div>
+                
+                <div class="card"><h3 class="font-bold mb-4">⏸️ MINOR STOP</h3>
+                    <div id="minor-stop-container" class="space-y-3 mb-4">
+                        ${(() => {
+                            const mesin = allMachines.find(m => m.id === selectedMachineId);
+                            const minorStopItems = mesin?.minor_stop_items || [];
+                            if (minorStopItems.length === 0) {
+                                return '<div class="text-center py-4 text-gray-400">Belum ada data minor stop. Atur di MANAGEMENT > Edit Mesin > Minor Stop</div>';
+                            }
+                            return minorStopItems.map((item, i) => `<div class="flex flex-wrap gap-3 p-4 bg-gray-50 rounded-xl items-center"><div class="flex-1 min-w-[150px]"><span class="font-medium">${item}</span></div><input type="number" class="input-field w-24" id="minor-stop-${i}" value="0" placeholder="Frekuensi" min="0"><textarea class="input-field flex-1" id="minor-problem-${i}" rows="1" placeholder="Problem..."></textarea><textarea class="input-field flex-1" id="minor-action-${i}" rows="1" placeholder="Action..."></textarea></div>`).join('');
+                        })()}
+                    </div>
+                    <button class="btn btn-secondary w-full" onclick="window.tambahMinorStop()" ${!selectedMachineId ? 'disabled' : ''}><i class="fas fa-plus"></i> TAMBAH MINOR STOP (Custom)</button>
+                </div>
+                
+                <div class="card bg-gradient-to-r from-blue-50 to-purple-50">
+                    <h3 class="font-bold mb-4">📊 OEE LIVE</h3>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="oee-card"><div class="oee-label">AVAILABILITY</div><div class="oee-value" id="live-avail">${oeeData.avail.toFixed(1)}%</div></div>
+                        <div class="oee-card"><div class="oee-label">AVAILABILITY 365</div><div class="oee-value" id="live-avail365">${oeeData.avail365.toFixed(1)}%</div></div>
+                        <div class="oee-card"><div class="oee-label">PERFORMANCE</div><div class="oee-value" id="live-perf">${oeeData.perf.toFixed(1)}%</div></div>
+                        <div class="oee-card"><div class="oee-label">QUALITY</div><div class="oee-value" id="live-qual">${oeeData.quality.toFixed(1)}%</div></div>
+                        <div class="oee-card oee-card-large"><div class="oee-label">OEE</div><div class="oee-value" id="live-oee">${oeeData.oee.toFixed(1)}%</div></div>
+                        <div class="oee-card"><div class="oee-label">OEE 365</div><div class="oee-value" id="live-oee365">${oeeData.oee365.toFixed(1)}%</div></div>
+                    </div>
+                    <div class="oee-card"><div class="oee-label">TOTAL OUTPUT</div><div class="oee-value text-blue-600" id="live-output">${oeeData.totalGood || 0}</div><div class="text-xs">Reject: ${oeeData.totalReject || 0}</div></div>
+                </div>
+                
+                <div class="flex justify-end gap-3"><button class="btn btn-secondary" onclick="window.resetForm()" ${editMode ? '' : 'style="display:none"'}>BATAL EDIT</button><button class="btn btn-primary px-8 py-3" onclick="window.simpanData()"><i class="fas fa-save"></i> ${editMode ? 'UPDATE DATA' : 'SIMPAN DATA'}</button></div>
+            </div>
+        `;
+    }
+    
+    // ==================== MANAGEMENT PAGE ====================
+    function renderManagementLogin() {
+        return `
+            <div class="gradient-bg text-white p-6 shadow-lg"><div class="max-w-7xl mx-auto"><h1 class="text-2xl font-bold">MANAGEMENT SYSTEM</h1></div></div>
+            <div class="login-container"><div class="card max-w-md mx-auto text-center"><div class="text-5xl mb-4">🔒</div><h3 class="text-2xl font-bold mb-2">MANAGEMENT ACCESS</h3><p class="text-gray-500 mb-6">Password: admin123</p><input type="password" id="mgmt-password" class="input-field mb-4" placeholder="PASSWORD" onkeypress="if(event.key==='Enter') window.unlockManagement()"><button class="btn btn-primary w-full" onclick="window.unlockManagement()">UNLOCK</button></div></div>
+        `;
+    }
+    
+    function renderManagementPage() {
+        return `
+            <div class="gradient-bg text-white p-6 shadow-lg">
+                <div class="max-w-7xl mx-auto flex justify-between items-center flex-wrap gap-4">
+                    <div><h1 class="text-2xl font-bold">MANAGEMENT SYSTEM</h1><p class="text-white/80 text-sm mt-1">PT GOF | Powered by Supabase</p></div>
+                    <div class="text-right"><p class="text-sm font-semibold">${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p></div>
+                </div>
+            </div>
+            <div class="max-w-7xl mx-auto px-4 py-6">
+                <div class="nav-tabs">
+                    <div class="nav-tab" onclick="window.navigateTo('dashboard')">📊 DASHBOARD</div>
+                    <div class="nav-tab" onclick="window.navigateTo('input')">✏️ INPUT TKL</div>
+                    <div class="nav-tab active">⚙️ MANAGEMENT</div>
+                    <div class="nav-tab" onclick="window.navigateTo('audit')">📋 AUDIT TRAIL</div>
+                </div>
+                
+                <div class="card"><div class="flex justify-between mb-4"><h2 class="text-xl font-bold">🏭 DAFTAR MESIN</h2><button class="btn btn-primary" onclick="window.showTambahMesinModal()">➕ TAMBAH MESIN</button></div>
+                    <div class="table-wrapper"> 
+                        <table> <thead> <tr><th>Nama Mesin</th><th>Target/Min</th><th>PIC</th><th>Kegiatan</th><th>Minor Stop</th><th>Aksi</th> </thead> <tbody> ${allMachines.map(m => `<tr>
+                            <td><strong>${m.machine_name}</strong></div></div></div></td>
+                            <td>${m.target_per_minute}</div></div></div></td>
+                            <td>${m.pic || '-'}</div></div></div></td>
+                            <td><span class="text-xs text-blue-600">${Object.values(m.activities || {}).reduce((s,a)=>s+a.length,0)} kegiatan</span></div></div></div></td>
+                            <td><span class="text-xs text-purple-600">${(m.minor_stop_items || []).length} item</span></div></div></div></td>
+                            <td><button class="btn btn-secondary text-sm py-1 px-3 mr-2" onclick="window.editMachineActivities('${m.id}')"><i class="fas fa-tasks"></i> Kegiatan</button><button class="btn btn-secondary text-sm py-1 px-3 mr-2" onclick="window.editMachine('${m.id}')">Edit</button><button class="btn btn-danger text-sm py-1 px-3" onclick="window.deleteMachine('${m.id}')">Hapus</button></div></div></div></td>
+                        </tr>`).join('')} </tbody> </div>
+                </div>
+                
+                <div class="card"><h2 class="text-xl font-bold mb-4">📚 LIBRARY KEGIATAN</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">${Object.entries(KODE_TKL).map(([kode, val]) => `<div class="bg-gray-50 p-4 rounded-xl"><div class="flex justify-between mb-2"><span class="kode-badge kode-${kode}">KODE ${kode}</span><button class="text-blue-500" onclick="window.addLibraryItem('${kode}')"><i class="fas fa-plus"></i></button></div><div class="space-y-1">${(libraryKegiatan[kode] || []).map(item => `<div class="flex justify-between bg-white p-2 rounded"><span>${item}</span><button class="text-red-500 text-xs" onclick="window.removeLibraryItem('${kode}', '${item}')">✕</button></div>`).join('') || '<p class="text-gray-400 text-sm">Kosong</p>'}</div></div>`).join('')}</div>
+                </div>
+                
+                <div class="card"><h2 class="text-xl font-bold mb-4">✏️ EDIT DATA OEE</h2>
+                    <div class="filter-section"><div><label class="text-xs">Tanggal</label><input type="date" id="edit-search-date" class="input-field"></div><div><label class="text-xs">Shift</label><select id="edit-search-shift" class="input-field"><option value="">Semua</option>${Object.keys(SHIFTS).map(s => `<option value="${s}">${s}</option>`).join('')}</select></div><div><label class="text-xs">Mesin</label><select id="edit-search-machine" class="input-field"><option value="">Semua</option>${[...new Set(allOEERecords.map(r => r.machine_name))].map(m => `<option value="${m}">${m}</option>`).join('')}</select></div></div>
+                    <button class="btn btn-primary" onclick="window.searchOEERecords()">🔍 Cari Data</button>
+                    <div id="edit-search-results" class="mt-4"></div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // ==================== AUDIT TRAIL PAGE ====================
+    function renderAuditPage() {
+        const records = getFilteredRecords();
+        return `
+            <div class="gradient-bg text-white p-6 shadow-lg">
+                <div class="max-w-7xl mx-auto flex justify-between items-center flex-wrap gap-4">
+                    <div><h1 class="text-2xl font-bold">AUDIT TRAIL</h1><p class="text-white/80 text-sm mt-1">Riwayat Semua Data OEE</p></div>
+                    <div class="text-right"><p class="text-sm font-semibold">${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p></div>
+                </div>
+            </div>
+            <div class="max-w-7xl mx-auto px-4 py-6">
+                <div class="nav-tabs">
+                    <div class="nav-tab" onclick="window.navigateTo('dashboard')">📊 DASHBOARD</div>
+                    <div class="nav-tab" onclick="window.navigateTo('input')">✏️ INPUT TKL</div>
+                    <div class="nav-tab" onclick="window.navigateTo('management')">⚙️ MANAGEMENT</div>
+                    <div class="nav-tab active">📋 AUDIT TRAIL</div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">🔍 Filter Data</div>
+                    <div class="filter-section">
+                        <div><label class="block text-xs mb-1">Start Date</label><input type="date" class="input-field" value="${filters.startDate}" onchange="window.updateFilter('startDate', this.value)"></div>
+                        <div><label class="block text-xs mb-1">End Date</label><input type="date" class="input-field" value="${filters.endDate}" onchange="window.updateFilter('endDate', this.value)"></div>
+                        <div><label class="block text-xs mb-1">Shift</label><select class="input-field" onchange="window.updateFilter('shift', this.value)"><option value="all">Semua Shift</option>${Object.keys(SHIFTS).map(s => `<option value="${s}" ${filters.shift === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+                        <div><label class="block text-xs mb-1">Machine</label><select class="input-field" onchange="window.updateFilter('machine', this.value)"><option value="all">Semua Mesin</option>${[...new Set(allOEERecords.map(r => r.machine_name))].map(m => `<option value="${m}" ${filters.machine === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
+                        <div><label class="block text-xs mb-1">PIC</label><select class="input-field" onchange="window.updateFilter('pic', this.value)"><option value="all">Semua Operator</option>${[...new Set(allOEERecords.map(r => r.pic))].map(p => `<option value="${p}" ${filters.pic === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">📋 SEMUA DATA OEE <span class="text-xs">(Klik baris untuk detail lengkap)</span></div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead> <tr><th>Date</th><th>Shift</th><th>Machine</th><th>PIC</th><th>Batch</th><th>Output</th><th>Reject</th><th>A%</th><th>P%</th><th>Q%</th><th>OEE%</th><th>Notes</th><th>Aksi</th> </thead>
+                            <tbody>
+                                ${records.map(r => `<tr class="clickable-row" onclick='window.showRecordDetail(${JSON.stringify(r).replace(/'/g, "\\'")})'>
+                                    <td>${formatDateShort(r.date)}</div></div></div></td>
+                                    <td>${r.shift || '-'}</td>
+                                    <td><strong>${r.machine_name || '-'}</strong></td>
+                                    <td>${r.pic || '-'}</td>
+                                    <td>${r.batch_number || '-'}</td>
+                                    <td>${(r.actual_output || 0).toLocaleString()}</td>
+                                    <td>${r.reject || 0}</div></div></div></td>
+                                    <td class="${(r.availability_actual || 0) >= CONFIG.A_TARGET ? 'status-good' : 'status-bad'}">${(r.availability_actual || 0).toFixed(1)}%</div></div></div></td>
+                                    <td class="${(r.performance || 0) >= CONFIG.P_TARGET ? 'status-good' : 'status-bad'}">${(r.performance || 0).toFixed(1)}%</div></div></div></td>
+                                    <td class="${(r.quality || 0) >= CONFIG.Q_TARGET ? 'status-good' : 'status-bad'}">${(r.quality || 0).toFixed(1)}%</div></div></div></td>
+                                    <td class="${(r.oee_actual || 0) >= CONFIG.OEE_TARGET ? 'status-good' : 'status-bad'}">${(r.oee_actual || 0).toFixed(1)}%</div></div></div></td>
+                                    <td class="max-w-[150px] truncate">${r.notes || '-'}</div></div></div></td>
+                                    <td><button class="btn btn-primary text-xs py-1 px-2" onclick="event.stopPropagation(); window.editOEERecord('${r.id}')">Edit</button></td>
+                                </tr>`).join('')}
+                                ${records.length === 0 ? '<tr><td colspan="13" class="text-center py-8">Belum ada数据</div></div></div></td>' : ''}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // ==================== EDIT MESIN ====================
+    function editMachineActivities(machineId) {
+        const machine = allMachines.find(m => m.id === machineId);
+        if (!machine) return;
+        
+        let html = `<h3 class="text-xl font-bold mb-4">📋 ATUR KEGIATAN MESIN: ${machine.machine_name}</h3>`;
+        html += `<p class="text-sm text-gray-500 mb-4">Pilih kegiatan dari library untuk mesin ini. Centang yang tersedia. Untuk kegiatan ODT (Kode 1,5,7,8), isi durasi standar.</p>`;
+        
+        const kodeUrutan = ['1','2','3','5','6','7','8','9'];
+        
+        kodeUrutan.forEach(kode => {
+            const libraryItems = libraryKegiatan[kode] || [];
+            const currentActivities = machine.activities?.[kode] || [];
+            const currentNames = currentActivities.map(a => a.nama);
+            
+            html += `<div class="border rounded-lg p-3 mb-3 bg-gray-50">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="kode-badge kode-${kode}">KODE ${kode}</span>
+                            <span class="font-semibold">${KODE_TKL[kode]?.icon} ${KODE_TKL[kode]?.name}</span>
+                            ${KODE_TKL[kode]?.hasDuration ? '<span class="text-xs text-blue-500 ml-2">(Isi durasi standar untuk ODT)</span>' : ''}
+                        </div>
+                        <div class="space-y-2">`;
+            
+            if (libraryItems.length === 0) {
+                html += `<div class="text-center text-gray-400 text-sm py-2">Belum ada kegiatan di library untuk kode ${kode}</div>`;
+            } else {
+                libraryItems.forEach(item => {
+                    const currentActivity = currentActivities.find(a => a.nama === item);
+                    const currentDurasi = currentActivity?.durasi || '';
+                    html += `<div class="flex items-center gap-3 p-2 bg-white rounded-lg">
+                                <input type="checkbox" class="act-checkbox" data-kode="${kode}" data-nama="${item}" ${currentNames.includes(item) ? 'checked' : ''}>
+                                <span class="text-sm flex-1">${item}</span>
+                                ${KODE_TKL[kode]?.hasDuration ? `
+                                    <div class="flex items-center gap-1">
+                                        <span class="text-xs text-gray-500">Durasi standar (menit):</span>
+                                        <input type="number" class="duration-input" data-nama="${item}" data-kode="${kode}" value="${currentDurasi}" placeholder="menit" style="width: 80px; padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                    </div>
+                                ` : ''}
+                            </div>`;
+                });
+            }
+            
+            html += `</div></div>`;
+        });
+        
+        html += `<div class="flex gap-3 mt-4"><button class="btn btn-primary flex-1" onclick="window.saveMachineActivities('${machineId}')">💾 SIMPAN KEGIATAN</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>`;
+        
+        showModal(html);
+    }
+    
+    async function saveMachineActivities(machineId) {
+        const checkboxes = document.querySelectorAll('.act-checkbox');
+        const newActivities = {};
+        
+        checkboxes.forEach(cb => {
+            const kode = cb.getAttribute('data-kode');
+            const nama = cb.getAttribute('data-nama');
+            if (cb.checked) {
+                if (!newActivities[kode]) newActivities[kode] = [];
+                let durasi = null;
+                const durationInput = document.querySelector(`.duration-input[data-nama="${nama}"][data-kode="${kode}"]`);
+                if (durationInput && durationInput.value) {
+                    durasi = parseInt(durationInput.value);
+                }
+                newActivities[kode].push({
+                    nama: nama,
+                    durasi: durasi && !isNaN(durasi) ? durasi : null
+                });
+            }
+        });
+        
+        const index = allMachines.findIndex(m => m.id === machineId);
+        if (index !== -1) {
+            allMachines[index].activities = newActivities;
+            await saveMachineToSupabase(allMachines[index]);
+            closeModal();
+            renderApp();
+            showToast('Kegiatan mesin berhasil diupdate');
+        }
+    }
+    
+    function editMachine(id) { 
+        const m = allMachines.find(m => m.id === id); 
+        if (!m) return; 
+        
+        const minorStopItems = (m.minor_stop_items || []).join(', ');
+        
+        showModal(`<h3 class="text-xl font-bold mb-4">✏️ EDIT MESIN: ${m.machine_name}</h3>
+            <div><label>Nama Mesin</label><input type="text" id="edit-name" class="input-field mb-2" value="${m.machine_name}"></div>
+            <div><label>Target per Menit</label><input type="number" id="edit-target" class="input-field mb-2" step="0.1" value="${m.target_per_minute}"></div>
+            <div><label>PIC</label><input type="text" id="edit-pic" class="input-field mb-2" value="${m.pic || ''}"></div>
+            <div><label>Minor Stop Items (pisahkan dengan koma)</label><input type="text" id="edit-minor-stop" class="input-field mb-4" value="${minorStopItems}" placeholder="Contoh: BOTTLE JAM, SENSOR ERROR, BELT SLIP"></div>
+            <div class="flex gap-3"><button class="btn btn-primary flex-1" onclick="window.updateMachine('${id}')">UPDATE</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
+        `); 
+    }
+    
+    async function updateMachine(id) { 
+        const name = document.getElementById('edit-name')?.value.toUpperCase(); 
+        const target = parseFloat(document.getElementById('edit-target')?.value) || 0; 
+        const pic = document.getElementById('edit-pic')?.value.toUpperCase() || ''; 
+        const minorStopStr = document.getElementById('edit-minor-stop')?.value || '';
+        const minorStopItems = minorStopStr.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+        
+        const idx = allMachines.findIndex(m => m.id === id); 
+        if (idx !== -1) { 
+            allMachines[idx] = { ...allMachines[idx], machine_name: name, target_per_minute: target, pic: pic, minor_stop_items: minorStopItems }; 
+            await saveMachineToSupabase(allMachines[idx]);
+            closeModal(); 
+            renderApp(); 
+            showToast('Mesin diupdate'); 
+        } 
+    }
+    
+    async function deleteMachine(id) { 
+        if (confirm('Hapus mesin ini? Data OEE yang terkait akan tetap ada.')) { 
+            await deleteMachineFromSupabase(id);
+            renderApp(); 
+        } 
+    }
+    
+    function showTambahMesinModal() { 
+        showModal(`<h3 class="text-xl font-bold mb-4">➕ TAMBAH MESIN</h3>
+            <div><label>Nama Mesin</label><input type="text" id="new-machine-name" class="input-field mb-2" placeholder="CONTOH: INJEKSI 3"></div>
+            <div><label>Target per Menit</label><input type="number" id="new-machine-target" class="input-field mb-2" step="0.1" placeholder="Contoh: 2.5"></div>
+            <div><label>PIC</label><input type="text" id="new-machine-pic" class="input-field mb-2" placeholder="NAMA OPERATOR"></div>
+            <div><label>Minor Stop Items (pisahkan dengan koma)</label><input type="text" id="new-machine-minor-stop" class="input-field mb-4" placeholder="Contoh: BOTTLE JAM, SENSOR ERROR, BELT SLIP"></div>
+            <div class="flex gap-3"><button class="btn btn-primary flex-1" onclick="window.saveNewMachine()">SIMPAN</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
+        `); 
+    }
+    
+    async function saveNewMachine() { 
+        const name = document.getElementById('new-machine-name')?.value.toUpperCase(); 
+        const target = parseFloat(document.getElementById('new-machine-target')?.value) || 0; 
+        const pic = document.getElementById('new-machine-pic')?.value.toUpperCase() || ''; 
+        const minorStopStr = document.getElementById('new-machine-minor-stop')?.value || '';
+        const minorStopItems = minorStopStr.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+        
+        if (!name) { showToast('Nama mesin harus diisi', 'error'); return; } 
+        const newMachine = { 
+            id: Date.now().toString(), 
+            machine_name: name, 
+            target_per_minute: target, 
+            pic: pic, 
+            activities: {},
+            minor_stop_items: minorStopItems
+        };
+        allMachines.push(newMachine);
+        await saveMachineToSupabase(newMachine);
+        closeModal(); 
+        renderApp(); 
+        showToast('Mesin ditambahkan. Sekarang atur kegiatannya dengan klik tombol Kegiatan'); 
+    }
+    
+    function addLibraryItem(kode) { 
+        showModal(`<h3 class="text-xl font-bold mb-4">➕ TAMBAH KE LIBRARY KODE ${kode}</h3>
+            <div><label>Nama Kegiatan</label><input type="text" id="new-item" class="input-field mb-4" placeholder="Contoh: SETUP MESIN"></div>
+            <div class="flex gap-3"><button class="btn btn-primary flex-1" onclick="window.saveLibraryItem('${kode}')">SIMPAN</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
+        `); 
+    }
+    
+    async function saveLibraryItem(kode) { 
+        const nama = document.getElementById('new-item')?.value.toUpperCase(); 
+        if (!nama) { showToast('Nama kegiatan harus diisi', 'error'); return; } 
+        if (!libraryKegiatan[kode]) libraryKegiatan[kode] = []; 
+        libraryKegiatan[kode].push(nama); 
+        await saveLibraryToSupabase(kode, libraryKegiatan[kode]);
+        closeModal(); 
+        renderApp(); 
+        showToast('Kegiatan ditambahkan'); 
+    }
+    
+    async function removeLibraryItem(kode, item) { 
+        if (confirm(`Hapus "${item}"?`)) { 
+            libraryKegiatan[kode] = libraryKegiatan[kode].filter(i => i !== item); 
+            await saveLibraryToSupabase(kode, libraryKegiatan[kode]);
+            renderApp(); 
+            showToast('Kegiatan dihapus'); 
+        } 
+    }
+    
+    function searchOEERecords() {
+        const date = document.getElementById('edit-search-date')?.value;
+        const shift = document.getElementById('edit-search-shift')?.value;
+        const machine = document.getElementById('edit-search-machine')?.value;
+        let results = allOEERecords;
+        if (date) results = results.filter(r => r.date === date);
+        if (shift && shift !== '') results = results.filter(r => r.shift === shift);
+        if (machine && machine !== '') results = results.filter(r => r.machine_name === machine);
+        const container = document.getElementById('edit-search-results');
+        if (!container) return;
+        if (results.length === 0) { container.innerHTML = '<div class="text-center py-8 text-gray-400">Tidak ada data</div>'; return; }
+        container.innerHTML = `<div class="table-wrapper"> <table> <thead> <tr><th>Tanggal</th><th>Shift</th><th>Mesin</th><th>PIC</th><th>Output</th><th>OEE%</th><th>Aksi</th> </thead> <tbody>${results.map(r => `<tr>
+                <td>${formatDateShort(r.date)}</div></div></div></td>
+                <td>${r.shift}</td>
+                <td>${r.machine_name}</td>
+                <td>${r.pic}</td>
+                <td>${r.actual_output}</td>
+                <td class="${(r.oee_actual || 0) >= 88 ? 'status-good' : 'status-bad'}">${(r.oee_actual || 0).toFixed(1)}%</div></div></div></td>
+                <td><button class="btn btn-primary text-xs py-1 px-3" onclick="window.editOEERecord('${r.id}')">Edit</button></td>
+            </tr>`).join('')} </tbody> </div>`;
+    }
+    
+    // ==================== INPUT TKL ACTIONS ====================
+    function tambahMinorStop() {
+        const itemName = prompt('Masukkan nama Minor Stop:', '');
+        if (itemName && itemName.trim()) {
+            minorStopList.push(toUpper(itemName.trim()));
+            renderApp();
+            showToast('Minor Stop ditambahkan');
+        }
+    }
+    
+    function updateSelectedDate(val) { selectedDate = val; renderApp(); }
+    function updateOperatorValue(val) { selectedOperator = toUpper(val); renderApp(); }
+    function updateShiftValue(val) { selectedShift = val; renderApp(); }
+    function updateMachineValue(val) { selectedMachineId = val; renderApp(); }
+    
+    function tambahBatch() { batches.push({ batch: '', good: 0, reject: 0 }); renderApp(); }
+    function hapusBatch(i) { batches.splice(i, 1); renderApp(); }
+    function updateBatch(i, field, val) { 
+        if (field === 'batch') batches[i].batch = toUpper(val); 
+        else batches[i][field] = val === '' ? 0 : parseInt(val) || 0; 
+        renderApp(); 
+    }
+    
+    function hapusKegiatan(i) { kegiatanList.splice(i, 1); renderApp(); }
+    
+    function editKegiatan(index) {
+        const kegiatan = kegiatanList[index];
+        if (!kegiatan) return;
+        
+        const durasi = hitungDurasi(kegiatan.dari, kegiatan.jam);
+        const isLSM = kegiatan.kode === 3;
+        const isLSNM = kegiatan.kode === 9;
+        const isODTWithExceed = [1,5,7,8].includes(kegiatan.kode) && kegiatan.isExceed;
+        
+        let additionalFields = '';
+        
+        if (isLSM) {
+            const isWRRequired = durasi >= CONFIG.WR_REQUIRED_MINUTES;
+            additionalFields = `
+                <div class="mb-3">
+                    <label class="block text-xs mb-1 ${isWRRequired ? 'required-label' : ''}">📋 NO WR</label>
+                    <input type="text" id="edit-no-wr" class="input-field" value="${kegiatan.no_wr || ''}" placeholder="Contoh: WR-001/2024">
+                    ${isWRRequired ? '<p class="text-xs text-red-500 mt-1">⚠️ Wajib diisi karena durasi ≥ 180 menit</p>' : ''}
+                </div>
+                <div class="mb-3">
+                    <label class="block text-xs mb-1">⚠️ DESKRIPSI PROBLEM</label>
+                    <textarea id="edit-problem" class="input-field" rows="2" placeholder="Jelaskan problem yang terjadi...">${kegiatan.problem || ''}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="block text-xs mb-1">🔧 ACTION</label>
+                    <textarea id="edit-action" class="input-field" rows="2" placeholder="Tindakan yang dilakukan...">${kegiatan.action || ''}</textarea>
+                </div>
+            `;
+        } else if (isLSNM) {
+            additionalFields = `
+                <div class="mb-3">
+                    <label class="block text-xs mb-1">⚠️ DESKRIPSI PROBLEM</label>
+                    <textarea id="edit-problem" class="input-field" rows="2" placeholder="Jelaskan problem yang terjadi...">${kegiatan.problem || ''}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="block text-xs mb-1">🔧 ACTION</label>
+                    <textarea id="edit-action" class="input-field" rows="2" placeholder="Tindakan yang dilakukan...">${kegiatan.action || ''}</textarea>
+                </div>
+            `;
+        } else if (isODTWithExceed) {
+            additionalFields = `
+                <div class="mb-3 p-3 bg-orange-50 rounded-lg border border-orange-300">
+                    <p class="text-sm text-orange-700 font-semibold"><i class="fas fa-exclamation-triangle"></i> Kegiatan ini melebihi durasi standar!</p>
+                    <p class="text-xs text-orange-600">Durasi aktual: ${durasi} menit | Standar: ${kegiatan.standarDurasi || '?'} menit | Kelebihan: ${durasi - (kegiatan.standarDurasi || 0)} menit</p>
+                </div>
+                <div class="mb-3">
+                    <label class="block text-xs mb-1">⚠️ DESKRIPSI PROBLEM (Penyebab exceed)</label>
+                    <textarea id="edit-problem" class="input-field" rows="2" placeholder="Jelaskan mengapa melebihi standar...">${kegiatan.problem || ''}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="block text-xs mb-1">🔧 ACTION (Tindakan perbaikan)</label>
+                    <textarea id="edit-action" class="input-field" rows="2" placeholder="Tindakan yang dilakukan...">${kegiatan.action || ''}</textarea>
+                </div>
+            `;
+        }
+        
+        showModal(`
+            <h3 class="text-xl font-bold mb-4">✏️ EDIT KEGIATAN</h3>
+            <div class="mb-3">
+                <label class="block text-xs mb-1">KEGIATAN</label>
+                <input type="text" class="input-field" value="${kegiatan.kegiatan}" readonly disabled>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div><label class="block text-xs mb-1">DARI</label><input type="time" id="edit-dari" class="input-field" value="${kegiatan.dari}"></div>
+                <div><label class="block text-xs mb-1">SAMPAI</label><input type="time" id="edit-sampai" class="input-field" value="${kegiatan.jam}"></div>
+            </div>
+            ${additionalFields}
+            <div class="flex gap-3 mt-4">
+                <button class="btn btn-primary flex-1" onclick="window.saveEditKegiatan(${index})">SIMPAN PERUBAHAN</button>
+                <button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button>
+            </div>
+        `);
+    }
+    
+    function saveEditKegiatan(index) {
+        const kegiatan = kegiatanList[index];
+        if (!kegiatan) return;
+        
+        const dariBaru = document.getElementById('edit-dari')?.value;
+        const sampaiBaru = document.getElementById('edit-sampai')?.value;
+        
+        if (dariBaru) kegiatan.dari = dariBaru;
+        if (sampaiBaru) kegiatan.jam = sampaiBaru;
+        
+        if (kegiatan.kode === 3) {
+            const noWR = document.getElementById('edit-no-wr')?.value;
+            const problem = document.getElementById('edit-problem')?.value;
+            const action = document.getElementById('edit-action')?.value;
+            
+            if (noWR !== undefined) kegiatan.no_wr = toUpper(noWR);
+            if (problem !== undefined) kegiatan.problem = problem;
+            if (action !== undefined) kegiatan.action = action;
+            
+            const durasi = hitungDurasi(kegiatan.dari, kegiatan.jam);
+            if (durasi >= CONFIG.WR_REQUIRED_MINUTES && !kegiatan.no_wr) {
+                showToast('No WR wajib diisi karena durasi ≥ 180 menit!', 'error');
+                return;
+            }
+        } else if (kegiatan.kode === 9) {
+            const problem = document.getElementById('edit-problem')?.value;
+            const action = document.getElementById('edit-action')?.value;
+            if (problem !== undefined) kegiatan.problem = problem;
+            if (action !== undefined) kegiatan.action = action;
+        } else if ([1,5,7,8].includes(kegiatan.kode) && kegiatan.isExceed) {
+            const problem = document.getElementById('edit-problem')?.value;
+            const action = document.getElementById('edit-action')?.value;
+            if (problem !== undefined) kegiatan.problem = problem;
+            if (action !== undefined) kegiatan.action = action;
+        }
+        
+        closeModal();
+        renderApp();
+        showToast('Kegiatan berhasil diupdate');
+    }
+    
+    function resetForm() { 
+        editMode = false; 
+        editingRecordId = null; 
+        kegiatanList = []; 
+        batches = []; 
+        minorStopList = [];
+        selectedShift = ''; 
+        selectedMachineId = ''; 
+        selectedOperator = ''; 
+        renderApp(); 
+        showToast('Form direset');
+    }
+    
+    function showTambahKegiatanModal() {
+        if (!selectedMachineId) { showToast('PILIH MESIN DULU', 'error'); return; }
+        
+        const mesin = allMachines.find(m => m.id === selectedMachineId);
+        if (!mesin || !mesin.activities || Object.keys(mesin.activities).length === 0) {
+            showToast('MESIN BELUM MEMILIKI KEGIATAN! Atur kegiatan di MANAGEMENT', 'error');
+            return;
+        }
+        
+        const start = getNextStart();
+        const shiftEnd = getShiftEnd();
+        
+        if (isTimeGreater(start, shiftEnd)) { showToast('SHIFT SUDAH BERAKHIR', 'error'); return; }
+        
+        let options = '<option value="">PILIH KEGIATAN</option>';
+        const kodeUrutan = ['1','2','3','5','6','7','8','9'];
+        
+        kodeUrutan.forEach(kode => {
+            const acts = mesin.activities?.[kode] || [];
+            if (acts.length) {
+                options += `<optgroup label="KODE ${kode} ${KODE_TKL[kode]?.icon}">`;
+                acts.forEach((a, idx) => {
+                    const durasiText = a.durasi ? ` (Standar: ${a.durasi} min)` : '';
+                    options += `<option value="${kode}_${idx}">${a.nama}${durasiText}</option>`;
+                });
+                options += '</optgroup>';
+            }
+        });
+        
+        if (options === '<option value="">PILIH KEGIATAN</option>') {
+            showToast('MESIN INI TIDAK MEMILIKI KEGIATAN! Atur kegiatan di MANAGEMENT', 'error');
+            return;
+        }
+        
+        showModal(`
+            <h3 class="text-xl font-bold mb-4">➕ TAMBAH KEGIATAN</h3>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div><label>DARI</label><input type="time" id="modal-dari" class="input-field" value="${start}" ${!kegiatanList.length ? 'readonly' : ''}></div>
+                <div><label>SAMPAI</label><input type="time" id="modal-sampai" class="input-field" value="${addHour(start)}"></div>
+            </div>
+            <div class="mb-3"><label>KEGIATAN</label><select id="modal-kegiatan-select" class="input-field" onchange="window.updateKegiatanFromSelect()">${options}</select></div>
+            <div class="mb-3"><label>NAMA KEGIATAN</label><input type="text" id="modal-kegiatan" class="input-field" readonly></div>
+            <div class="flex gap-3 mt-4"><button class="btn btn-primary flex-1" onclick="window.tambahKegiatanFromModal()">TAMBAH</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
+        `);
+    }
+    
+    function updateKegiatanFromSelect() {
+        const sel = document.getElementById('modal-kegiatan-select');
+        if (sel?.value) {
+            const [kode, idx] = sel.value.split('_');
+            const mesin = allMachines.find(m => m.id === selectedMachineId);
+            const kegiatan = mesin?.activities?.[kode]?.[parseInt(idx)];
+            if (kegiatan) document.getElementById('modal-kegiatan').value = kegiatan.nama;
+        }
+    }
+    
+    function tambahKegiatanFromModal() {
+        const dari = document.getElementById('modal-dari')?.value;
+        const sampai = document.getElementById('modal-sampai')?.value;
+        const kegiatan = document.getElementById('modal-kegiatan')?.value;
+        const sel = document.getElementById('modal-kegiatan-select');
+        
+        if (!sel?.value || !kegiatan) { showToast('PILIH KEGIATAN', 'error'); return; }
+        
+        const [kodeStr] = sel.value.split('_');
+        const kode = parseInt(kodeStr);
+        
+        if (isTimeGreater(sampai, getShiftEnd())) { showToast('MELEBIHI AKHIR SHIFT', 'error'); return; }
+        
+        if (kegiatanList.length === 0) { 
+            if (dari !== getShiftStart()) { showToast(`KEGIATAN PERTAMA HARUS MULAI JAM ${getShiftStart()}`, 'error'); return; } 
+        } else { 
+            const last = kegiatanList[kegiatanList.length - 1]; 
+            if (dari !== last.jam) { showToast(`HARUS LANJUT DARI JAM ${last.jam}`, 'error'); return; } 
+        }
+        
+        const newKegiatan = { 
+            dari, jam: sampai, kode: kode, kegiatan: toUpper(kegiatan),
+            problem: '', action: '', no_wr: '', isExceed: false
+        };
+        
+        if (kode === 3) {
+            kegiatanList.push(newKegiatan);
+            closeModal();
+            renderApp();
+            setTimeout(() => editKegiatan(kegiatanList.length - 1), 100);
+        } else {
+            kegiatanList.push(newKegiatan);
+            closeModal();
+            renderApp();
+            showToast('KEGIATAN DITAMBAHKAN');
+            
+            if ([1,5,7,8].includes(kode)) {
+                const mesin = allMachines.find(m => m.id === selectedMachineId);
+                let standarDurasi = 0;
+                if (mesin?.activities && mesin.activities[kode]) {
+                    const kegiatanData = mesin.activities[kode].find(a => a.nama === newKegiatan.kegiatan);
+                    standarDurasi = kegiatanData?.durasi || 0;
+                }
+                const durasi = hitungDurasi(dari, sampai);
+                if (standarDurasi > 0 && durasi > standarDurasi) {
+                    newKegiatan.isExceed = true;
+                    newKegiatan.exceedDuration = durasi - standarDurasi;
+                    newKegiatan.standarDurasi = standarDurasi;
+                    renderApp();
+                    setTimeout(() => editKegiatan(kegiatanList.length - 1), 100);
+                }
+            }
+        }
+    }
+    
+    async function simpanData() {
+        const dateInput = document.getElementById('input-date');
+        const shiftSelect = document.getElementById('input-shift');
+        const machineSelect = document.getElementById('input-machine');
+        const operatorInput = document.getElementById('input-operator');
+        
+        if (dateInput) selectedDate = dateInput.value;
+        if (shiftSelect && shiftSelect.value) selectedShift = shiftSelect.value;
+        if (machineSelect && machineSelect.value) selectedMachineId = machineSelect.value;
+        if (operatorInput && operatorInput.value) selectedOperator = toUpper(operatorInput.value);
+        
+        if (!selectedShift) { showToast('LENGKAPI DATA: Pilih SHIFT terlebih dahulu!', 'error'); return; }
+        if (!selectedMachineId) { showToast('LENGKAPI DATA: Pilih MESIN terlebih dahulu!', 'error'); return; }
+        if (!selectedOperator) { showToast('LENGKAPI DATA: Isi nama OPERATOR!', 'error'); return; }
+        if (!kegiatanList.length) { showToast('MINIMAL 1 KEGIATAN', 'error'); return; }
+        if (!batches.length) { showToast('MINIMAL 1 BATCH', 'error'); return; }
+        
+        for (const k of kegiatanList) {
+            if (k.kode === 3) {
+                const durasi = hitungDurasi(k.dari, k.jam);
+                if (durasi >= CONFIG.WR_REQUIRED_MINUTES && !k.no_wr) {
+                    showToast(`Line Stop "${k.kegiatan}" (${durasi} menit) wajib diisi No WR!`, 'error');
+                    return;
+                }
+            }
+        }
+        
+        const oeeData = hitungAvailAndOEE(kegiatanList, batches, selectedShift, selectedMachineId);
+        const resume = hitungResume(kegiatanList, selectedMachineId);
+        const mesin = allMachines.find(m => m.id === selectedMachineId);
+        
+        // Kumpulkan data minor stop dari form
+        const minorStopData = [];
+        const mesinMinorItems = mesin?.minor_stop_items || [];
+        for (let i = 0; i < mesinMinorItems.length; i++) {
+            const freqInput = document.getElementById(`minor-stop-${i}`);
+            const problemInput = document.getElementById(`minor-problem-${i}`);
+            const actionInput = document.getElementById(`minor-action-${i}`);
+            if (freqInput) {
+                const freq = parseInt(freqInput.value) || 0;
+                if (freq > 0) {
+                    minorStopData.push({
+                        item: mesinMinorItems[i],
+                        frequency: freq,
+                        problem: problemInput?.value || '',
+                        action: actionInput?.value || ''
+                    });
+                }
+            }
+        }
+        
+        // Tambahkan minor stop custom dari user
+        for (let i = 0; i < minorStopList.length; i++) {
+            const freqInput = document.getElementById(`custom-minor-${i}`);
+            if (freqInput) {
+                const freq = parseInt(freqInput.value) || 0;
+                if (freq > 0) {
+                    minorStopData.push({
+                        item: minorStopList[i],
+                        frequency: freq,
+                        problem: document.getElementById(`custom-problem-${i}`)?.value || '',
+                        action: document.getElementById(`custom-action-${i}`)?.value || ''
+                    });
+                }
+            }
+        }
+        
+        const recordData = {
+            id: editMode && editingRecordId ? editingRecordId : Date.now().toString() + Math.random(),
+            date: selectedDate,
+            shift: selectedShift,
+            machine_id: selectedMachineId,
+            machine_name: mesin?.machine_name,
+            pic: selectedOperator,
+            batch_number: batches[0]?.batch || '',
+            actual_output: batches.reduce((s,b)=>s+(Number(b.good)||0),0),
+            reject: batches.reduce((s,b)=>s+(Number(b.reject)||0),0),
+            availability_actual: oeeData.avail,
+            availability_365: oeeData.avail365,
+            performance: oeeData.perf,
+            quality: oeeData.quality,
+            oee_actual: oeeData.oee,
+            oee_365: oeeData.oee365,
+            minor_stop_count: minorStopData.reduce((s,ms)=>s+ms.frequency,0),
+            odt_data: kegiatanList.filter(k => [1,5,6,7,8].includes(k.kode)).map(k => {
+                const mesinData = allMachines.find(m => m.id === selectedMachineId);
+                let standar = 0;
+                if (mesinData?.activities && mesinData.activities[k.kode]) {
+                    const kegiatanData = mesinData.activities[k.kode].find(a => a.nama === k.kegiatan);
+                    standar = kegiatanData?.durasi || 0;
+                }
+                const actual = hitungDurasi(k.dari, k.jam);
+                return {
+                    name: k.kegiatan,
+                    standardTime: standar,
+                    actualTime: actual,
+                    checked: true,
+                    problem: k.problem || '',
+                    action: k.action || ''
+                };
+            }),
+            line_stop_mesin_data: kegiatanList.filter(k => k.kode === 3).map(k => ({
+                item: k.kegiatan,
+                duration: hitungDurasi(k.dari, k.jam),
+                no_wr: k.no_wr || '',
+                problem: k.problem || '',
+                action: k.action || ''
+            })),
+            line_stop_non_mesin_data: [
+                ...kegiatanList.filter(k => k.kode === 9).map(k => ({
+                    item: k.kegiatan,
+                    duration: hitungDurasi(k.dari, k.jam),
+                    problem: k.problem || '',
+                    action: k.action || ''
+                })),
+                ...resume.odtExceeds.map(ex => ({
+                    item: `ODT Exceed - ${ex.item}`,
+                    duration: ex.exceed,
+                    problem: ex.problem || '',
+                    action: ex.action || ''
+                }))
+            ],
+            minor_stop_data: minorStopData,
+            notes: '',
+            kegiatan_data: JSON.parse(JSON.stringify(kegiatanList)),
+            batch_data: JSON.parse(JSON.stringify(batches)),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+        
+        if (editMode && editingRecordId) {
+            await updateOEERecordInSupabase(editingRecordId, recordData);
+        } else {
+            await saveOEERecordToSupabase(recordData);
+        }
+        
+        kegiatanList = []; batches = []; minorStopList = [];
+        selectedShift = ''; selectedMachineId = ''; selectedOperator = '';
+        editMode = false; editingRecordId = null;
+        
+        navigateTo('dashboard');
+        showToast('Data berhasil disimpan!');
+    }
+    
+    function editOEERecord(id) {
+        const record = allOEERecords.find(r => r.id == id);
+        if (!record) return;
+        editMode = true;
+        editingRecordId = id;
+        selectedDate = record.date;
+        selectedShift = record.shift;
+        selectedMachineId = record.machine_id;
+        selectedOperator = record.pic;
+        kegiatanList = record.kegiatan_data ? JSON.parse(JSON.stringify(record.kegiatan_data)) : [];
+        batches = record.batch_data ? JSON.parse(JSON.stringify(record.batch_data)) : [];
+        navigateTo('input');
+        showToast('Data loaded for editing');
+    }
+    
+    function unlockManagement() { 
+        const input = document.getElementById('mgmt-password');
+        if (input && input.value === CONFIG.MANAGEMENT_PASSWORD) { 
+            isManagementUnlocked = true; 
+            renderApp(); 
+            showToast('Management unlocked'); 
+        } else if (input) showToast('Password salah', 'error'); 
+    }
+    
+    function navigateTo(page) { currentPage = page; if (page !== 'management') isManagementUnlocked = false; renderApp(); }
+    function updateFilter(key, value) { filters[key] = value; renderApp(); }
+    
+    function toggleTheme() {
+        const html = document.documentElement;
+        const current = html.getAttribute('data-theme');
+        const newTheme = current === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', newTheme);
+        localStorage.setItem('oee-theme', newTheme);
+        const btn = document.getElementById('theme-toggle-btn');
+        if (btn) btn.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+    }
+    
+    function initTheme() {
+        const saved = localStorage.getItem('oee-theme') || 'light';
+        document.documentElement.setAttribute('data-theme', saved);
+        const btn = document.getElementById('theme-toggle-btn');
+        if (btn) btn.textContent = saved === 'dark' ? '☀️' : '🌙';
+    }
+    
+    function renderLoading() {
+        const app = document.getElementById('app-wrapper');
+        if (app) {
+            app.innerHTML = `
+                <div class="flex items-center justify-center min-h-screen">
+                    <div class="text-center">
+                        <div class="loading-spinner w-12 h-12 border-4 border-gray-300 border-t-purple-600 rounded-full animate-spin"></div>
+                        <p class="mt-4 text-gray-500">Loading data from Supabase...</p>
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    function renderApp() {
+        if (isLoading) {
+            renderLoading();
+            return;
+        }
+        
+        const app = document.getElementById('app-wrapper');
+        if (!app) return;
+        
+        if (currentPage === 'dashboard') {
+            app.innerHTML = renderDashboard();
+            setTimeout(renderCharts, 100);
+        } else if (currentPage === 'input') {
+            app.innerHTML = renderInputPage();
+        } else if (currentPage === 'management') {
+            app.innerHTML = isManagementUnlocked ? renderManagementPage() : renderManagementLogin();
+        } else if (currentPage === 'audit') {
+            app.innerHTML = renderAuditPage();
+        }
+    }
+    
+    // EXPORT GLOBAL
+    window.navigateTo = navigateTo;
+    window.updateFilter = updateFilter;
+    window.toggleTheme = toggleTheme;
+    window.closeModal = closeModal;
+    window.showRecordDetail = showRecordDetail;
+    window.updateSelectedDate = updateSelectedDate;
+    window.updateOperatorValue = updateOperatorValue;
+    window.updateShiftValue = updateShiftValue;
+    window.updateMachineValue = updateMachineValue;
+    window.tambahBatch = tambahBatch;
+    window.hapusBatch = hapusBatch;
+    window.updateBatch = updateBatch;
+    window.hapusKegiatan = hapusKegiatan;
+    window.editKegiatan = editKegiatan;
+    window.saveEditKegiatan = saveEditKegiatan;
+    window.resetForm = resetForm;
+    window.showTambahKegiatanModal = showTambahKegiatanModal;
+    window.updateKegiatanFromSelect = updateKegiatanFromSelect;
+    window.tambahKegiatanFromModal = tambahKegiatanFromModal;
+    window.simpanData = simpanData;
+    window.editOEERecord = editOEERecord;
+    window.unlockManagement = unlockManagement;
+    window.showTambahMesinModal = showTambahMesinModal;
+    window.saveNewMachine = saveNewMachine;
+    window.editMachine = editMachine;
+    window.updateMachine = updateMachine;
+    window.deleteMachine = deleteMachine;
+    window.addLibraryItem = addLibraryItem;
+    window.saveLibraryItem = saveLibraryItem;
+    window.removeLibraryItem = removeLibraryItem;
+    window.searchOEERecords = searchOEERecords;
+    window.editMachineActivities = editMachineActivities;
+    window.saveMachineActivities = saveMachineActivities;
+    window.tambahMinorStop = tambahMinorStop;
+    
+    // START APPLICATION
+    initTheme();
+    loadAllData();
+})();
+</script>
+</body>
+</html>
