@@ -193,9 +193,20 @@
             border-radius: 12px;
             padding: 1rem;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 1rem;
             margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .timeline-card-details {
+            flex: 1;
+        }
+        
+        .timeline-card-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
         }
         
         .resume-card {
@@ -474,6 +485,7 @@
         .justify-between { justify-content: space-between; }
         .justify-end { justify-content: flex-end; }
         .items-center { align-items: center; }
+        .items-start { align-items: flex-start; }
         .gap-2 { gap: 0.5rem; }
         .gap-3 { gap: 0.75rem; }
         .gap-4 { gap: 1rem; }
@@ -557,10 +569,21 @@
         .border-l-4 { border-left-width: 4px; }
         .border-orange-300 { border-color: #fdba74; }
         .border-yellow-400 { border-color: #facc15; }
+        .border-red-300 { border-color: #fca5a5; }
         .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .overflow-x-auto { overflow-x: auto; }
         .hover\:scale-105:hover { transform: scale(1.05); }
         .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+        
+        .required-field {
+            border-color: #ef4444 !important;
+            background-color: rgba(239,68,68,0.05) !important;
+        }
+        
+        .required-label::after {
+            content: " *";
+            color: #ef4444;
+        }
     </style>
 </head>
 <body>
@@ -580,18 +603,19 @@
         P_TARGET: 98,
         Q_TARGET: 99,
         A365_TARGET: 60,
-        MANAGEMENT_PASSWORD: 'admin123'
+        MANAGEMENT_PASSWORD: 'admin123',
+        WR_REQUIRED_MINUTES: 180 // Minimal durasi untuk wajib isi No WR
     };
     
     const KODE_TKL = {
-        '1': { name: 'PERSIAPAN AWAL (SETUP)', icon: '🔧', hasDuration: true },
-        '2': { name: 'JALAN PROSES (RUNNING)', icon: '⚙️', hasDuration: false },
-        '3': { name: 'LINESTOP MESIN', icon: '⚠️', hasDuration: false },
-        '5': { name: 'AM ACTIVITY', icon: '🧹', hasDuration: true },
-        '6': { name: 'PM, CLOSE TAG', icon: '🔩', hasDuration: false },
-        '7': { name: 'CLEANING AKHIR', icon: '🧼', hasDuration: true },
-        '8': { name: 'ISTIRAHAT, BRIEFING', icon: '☕', hasDuration: true },
-        '9': { name: 'LINE STOP NON MESIN', icon: '⏸️', hasDuration: false }
+        '1': { name: 'PERSIAPAN AWAL (SETUP)', icon: '🔧', hasDuration: true, hasProblemAction: true },
+        '2': { name: 'JALAN PROSES (RUNNING)', icon: '⚙️', hasDuration: false, hasProblemAction: false },
+        '3': { name: 'LINESTOP MESIN', icon: '⚠️', hasDuration: false, hasWR: true, hasProblemAction: true },
+        '5': { name: 'AM ACTIVITY', icon: '🧹', hasDuration: true, hasProblemAction: true },
+        '6': { name: 'PM, CLOSE TAG', icon: '🔩', hasDuration: false, hasProblemAction: false },
+        '7': { name: 'CLEANING AKHIR', icon: '🧼', hasDuration: true, hasProblemAction: true },
+        '8': { name: 'ISTIRAHAT, BRIEFING', icon: '☕', hasDuration: true, hasProblemAction: true },
+        '9': { name: 'LINE STOP NON MESIN', icon: '⏸️', hasDuration: false, hasProblemAction: true }
     };
     
     const SHIFTS = {
@@ -604,9 +628,9 @@
     
     // ==================== LOCAL STORAGE ====================
     const STORAGE_KEYS = {
-        MACHINES: 'oee_machines_v3',
-        LIBRARY: 'oee_library_v3',
-        OEE_RECORDS: 'oee_records_v3'
+        MACHINES: 'oee_machines_v4',
+        LIBRARY: 'oee_library_v4',
+        OEE_RECORDS: 'oee_records_v4'
     };
     
     // ==================== STATE ====================
@@ -617,8 +641,8 @@
     let chartInstances = {};
     let isManagementUnlocked = false;
     
-    // State untuk Input TKL
-    let kegiatanList = [];
+    // State untuk Input TKL - sekarang dengan detail tambahan
+    let kegiatanList = []; // setiap item: { dari, jam, kode, kegiatan, durasi, problem, action, no_wr, isExceed }
     let batches = [];
     let selectedDate = new Date().toISOString().split('T')[0];
     let selectedShift = '';
@@ -738,10 +762,16 @@
                         item: k.kegiatan,
                         standardTime: standarDurasi,
                         actualTime: dur,
-                        exceed: exceed
+                        exceed: exceed,
+                        problem: k.problem || '',
+                        action: k.action || ''
                     });
+                    // Tandai kegiatan ini sebagai exceed
+                    k.isExceed = true;
+                    k.exceedDuration = exceed;
                 } else {
                     totalODT += dur;
+                    k.isExceed = false;
                 }
             }
         });
@@ -796,12 +826,12 @@
             libraryKegiatan = {
                 '1': ['SETUP MESIN', 'PERSIAPAN MATERIAL', 'PENGECEKAN AWAL'],
                 '2': ['PRODUKSI NORMAL'],
-                '3': ['MOTOR OVERLOAD', 'SENSOR ERROR', 'BELT PUTUS'],
-                '5': ['5R PAGI', 'CLEANING MESIN'],
+                '3': ['MOTOR OVERLOAD', 'SENSOR ERROR', 'BELT PUTUS', 'POMPA OIL JAM', 'AIR CYLINDER ERROR'],
+                '5': ['5R PAGI', 'CLEANING MESIN', 'OILING'],
                 '6': ['PM HARIAN', 'PM MINGGUAN'],
                 '7': ['CLEANING AKHIR', 'PEMBERSIHAN AREA'],
                 '8': ['ISTIRAHAT', 'BRIEFING', 'START UP'],
-                '9': ['TUNGGU MATERIAL', 'TUNGGU INSTRUKSI', 'ADMINISTRASI']
+                '9': ['TUNGGU MATERIAL', 'TUNGGU INSTRUKSI', 'ADMINISTRASI', 'TUNGGU SETTING']
             };
             saveToStorage();
         }
@@ -1031,7 +1061,13 @@
             record.line_stop_mesin_data.forEach(ls => {
                 const dur = parseFloat(ls.duration) || 0;
                 totalLSM += dur;
-                lsmItemsHTML += `<div class="detail-item"><div class="detail-item-label">${ls.item}</div><div class="detail-item-value">${dur.toFixed(1)} menit</div>${ls.action ? `<div class="text-xs text-gray-500 mt-1">Action: ${ls.action}</div>` : ''}</div>`;
+                lsmItemsHTML += `<div class="detail-item">
+                    <div class="detail-item-label">${ls.item}</div>
+                    <div class="detail-item-value">${dur.toFixed(1)} menit</div>
+                    ${ls.no_wr ? `<div class="text-xs text-gray-500 mt-1">📋 No WR: ${ls.no_wr}</div>` : ''}
+                    ${ls.problem ? `<div class="text-xs text-gray-500 mt-1">⚠️ Problem: ${ls.problem}</div>` : ''}
+                    ${ls.action ? `<div class="text-xs text-gray-500 mt-1">🔧 Action: ${ls.action}</div>` : ''}
+                </div>`;
             });
         }
         
@@ -1041,7 +1077,12 @@
             record.line_stop_non_mesin_data.forEach(ls => {
                 const dur = parseFloat(ls.duration) || 0;
                 totalLSNM += dur;
-                lsnmItemsHTML += `<div class="detail-item"><div class="detail-item-label">${ls.item}</div><div class="detail-item-value">${dur.toFixed(1)} menit</div></div>`;
+                lsnmItemsHTML += `<div class="detail-item">
+                    <div class="detail-item-label">${ls.item}</div>
+                    <div class="detail-item-value">${dur.toFixed(1)} menit</div>
+                    ${ls.problem ? `<div class="text-xs text-gray-500 mt-1">⚠️ Problem: ${ls.problem}</div>` : ''}
+                    ${ls.action ? `<div class="text-xs text-gray-500 mt-1">🔧 Action: ${ls.action}</div>` : ''}
+                </div>`;
             });
         }
         
@@ -1139,20 +1180,20 @@
                             <thead> <tr><th>Date</th><th>Shift</th><th>Machine</th><th>PIC</th><th>Batch</th><th>Output</th><th>Reject</th><th>A%</th><th>P%</th><th>Q%</th><th>OEE%</th><th>Notes</th> </thead>
                             <tbody>
                                 ${records.slice(0, 20).map(r => `<tr class="clickable-row" onclick='window.showRecordDetail(${JSON.stringify(r).replace(/'/g, "\\'")})'>
-                                    <td>${formatDateShort(r.date)}</td>
+                                    <td>${formatDateShort(r.date)}</div></div></div></td>
                                     <td>${r.shift || '-'}</td>
                                     <td><strong>${r.machine_name || '-'}</strong></td>
                                     <td>${r.pic || '-'}</td>
                                     <td>${r.batch_number || '-'}</td>
                                     <td>${(r.actual_output || 0).toLocaleString()}</td>
-                                    <td>${r.reject || 0}</td>
-                                    <td class="${(r.availability_actual || 0) >= CONFIG.A_TARGET ? 'status-good' : 'status-bad'}">${(r.availability_actual || 0).toFixed(1)}%</td>
-                                    <td class="${(r.performance || 0) >= CONFIG.P_TARGET ? 'status-good' : 'status-bad'}">${(r.performance || 0).toFixed(1)}%</td>
-                                    <td class="${(r.quality || 0) >= CONFIG.Q_TARGET ? 'status-good' : 'status-bad'}">${(r.quality || 0).toFixed(1)}%</td>
-                                    <td class="${(r.oee_actual || 0) >= CONFIG.OEE_TARGET ? 'status-good' : 'status-bad'}">${(r.oee_actual || 0).toFixed(1)}%</td>
-                                    <td class="max-w-[150px] truncate">${r.notes || '-'}</td>
+                                    <td>${r.reject || 0}</div></div></div></td>
+                                    <td class="${(r.availability_actual || 0) >= CONFIG.A_TARGET ? 'status-good' : 'status-bad'}">${(r.availability_actual || 0).toFixed(1)}%</div></div></div></td>
+                                    <td class="${(r.performance || 0) >= CONFIG.P_TARGET ? 'status-good' : 'status-bad'}">${(r.performance || 0).toFixed(1)}%</div></div></div></td>
+                                    <td class="${(r.quality || 0) >= CONFIG.Q_TARGET ? 'status-good' : 'status-bad'}">${(r.quality || 0).toFixed(1)}%</div></div></div></td>
+                                    <td class="${(r.oee_actual || 0) >= CONFIG.OEE_TARGET ? 'status-good' : 'status-bad'}">${(r.oee_actual || 0).toFixed(1)}%</div></div></div></td>
+                                    <td class="max-w-[150px] truncate">${r.notes || '-'}</div></div></div></td>
                                 </tr>`).join('')}
-                                ${records.length === 0 ? '<tr><td colspan="12" class="text-center py-8">Belum ada data</td></tr>' : ''}
+                                ${records.length === 0 ? '<tr><td colspan="12" class="text-center py-8">Belum ada数据</div></div></div></td>' : ''}
                             </tbody>
                         </table>
                     </div>
@@ -1202,7 +1243,32 @@
                 
                 <div class="card"><div class="flex justify-between items-center mb-4"><h3 class="font-bold">⏱️ KEGIATAN</h3><button class="btn btn-primary text-sm" onclick="window.showTambahKegiatanModal()" ${!mesinTerpilih ? 'disabled' : ''}><i class="fas fa-plus"></i> TAMBAH</button></div>
                     <div id="kegiatan-list-container">
-                        ${kegiatanList.length === 0 ? '<div class="text-center py-8 bg-gray-50 rounded-lg"><p class="text-gray-400">BELUM ADA KEGIATAN</p></div>' : kegiatanList.map((k, i) => `<div class="timeline-card"><div class="kode-badge kode-${k.kode}">${k.kode}</div><div class="flex-1"><div><span class="font-semibold">${k.dari} - ${k.jam}</span> <span class="text-xs bg-gray-200 px-2 py-1 rounded">${KODE_TKL[k.kode]?.icon} ${KODE_TKL[k.kode]?.name}</span></div><div class="text-sm">${k.kegiatan}</div></div><button class="text-red-500" onclick="window.hapusKegiatan(${i})"><i class="fas fa-trash"></i></button></div>`).join('')}
+                        ${kegiatanList.length === 0 ? '<div class="text-center py-8 bg-gray-50 rounded-lg"><p class="text-gray-400">BELUM ADA KEGIATAN</p></div>' : kegiatanList.map((k, i) => {
+                            const durasi = hitungDurasi(k.dari, k.jam);
+                            const isLSM = k.kode === 3;
+                            const isODTWithExceed = [1,5,7,8].includes(k.kode) && k.isExceed;
+                            
+                            return `<div class="timeline-card">
+                                <div class="kode-badge kode-${k.kode}">${k.kode}</div>
+                                <div class="timeline-card-details">
+                                    <div><span class="font-semibold">${k.dari} - ${k.jam}</span> <span class="text-xs bg-gray-200 px-2 py-1 rounded">${KODE_TKL[k.kode]?.icon} ${KODE_TKL[k.kode]?.name}</span></div>
+                                    <div class="text-sm font-medium mt-1">${k.kegiatan}</div>
+                                    <div class="text-xs text-gray-500">Durasi: ${durasi} menit</div>
+                                    ${isLSM && k.no_wr ? `<div class="text-xs text-blue-600 mt-1">📋 No WR: ${k.no_wr}</div>` : ''}
+                                    ${isLSM && k.problem ? `<div class="text-xs text-orange-600 mt-1">⚠️ Problem: ${k.problem}</div>` : ''}
+                                    ${isLSM && k.action ? `<div class="text-xs text-green-600 mt-1">🔧 Action: ${k.action}</div>` : ''}
+                                    ${!isLSM && k.kode === 9 && k.problem ? `<div class="text-xs text-orange-600 mt-1">⚠️ Problem: ${k.problem}</div>` : ''}
+                                    ${!isLSM && k.kode === 9 && k.action ? `<div class="text-xs text-green-600 mt-1">🔧 Action: ${k.action}</div>` : ''}
+                                    ${isODTWithExceed && k.problem ? `<div class="text-xs text-orange-600 mt-1">⚠️ Problem (Exceed): ${k.problem}</div>` : ''}
+                                    ${isODTWithExceed && k.action ? `<div class="text-xs text-green-600 mt-1">🔧 Action (Exceed): ${k.action}</div>` : ''}
+                                    ${k.isExceed ? `<div class="text-xs text-red-500 mt-1">⚠️ Melebihi standar! Kelebihan ${k.exceedDuration} menit masuk LSNM</div>` : ''}
+                                </div>
+                                <div class="timeline-card-actions">
+                                    <button class="text-blue-500" onclick="window.editKegiatan(${i})" title="Edit"><i class="fas fa-edit"></i></button>
+                                    <button class="text-red-500" onclick="window.hapusKegiatan(${i})" title="Hapus"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>`;
+                        }).join('')}
                     </div>
                     ${odtExceedsHTML}
                 </div>
@@ -1267,11 +1333,11 @@
                 <div class="card"><div class="flex justify-between mb-4"><h2 class="text-xl font-bold">🏭 DAFTAR MESIN</h2><button class="btn btn-primary" onclick="window.showTambahMesinModal()">➕ TAMBAH MESIN</button></div>
                     <div class="table-wrapper"> 
                         <table> <thead> <tr><th>Nama Mesin</th><th>Target/Min</th><th>PIC</th><th>Kegiatan</th><th>Aksi</th> </thead> <tbody> ${allMachines.map(m => `<tr>
-                            <td><strong>${m.machine_name}</strong></td>
+                            <td><strong>${m.machine_name}</strong></div></div></div></td>
                             <td>${m.target_per_minute}</div></div></div></td>
-                            <td>${m.pic || '-'}</td>
-                            <td><span class="text-xs text-blue-600">${Object.values(m.activities || {}).reduce((s,a)=>s+a.length,0)} kegiatan</span></td>
-                            <td><button class="btn btn-secondary text-sm py-1 px-3 mr-2" onclick="window.editMachineActivities('${m.id}')"><i class="fas fa-tasks"></i> Kegiatan</button><button class="btn btn-secondary text-sm py-1 px-3 mr-2" onclick="window.editMachine('${m.id}')">Edit</button><button class="btn btn-danger text-sm py-1 px-3" onclick="window.deleteMachine('${m.id}')">Hapus</button></td>
+                            <td>${m.pic || '-'}</div></div></div></td>
+                            <td><span class="text-xs text-blue-600">${Object.values(m.activities || {}).reduce((s,a)=>s+a.length,0)} kegiatan</span></div></div></div></td>
+                            <td><button class="btn btn-secondary text-sm py-1 px-3 mr-2" onclick="window.editMachineActivities('${m.id}')"><i class="fas fa-tasks"></i> Kegiatan</button><button class="btn btn-secondary text-sm py-1 px-3 mr-2" onclick="window.editMachine('${m.id}')">Edit</button><button class="btn btn-danger text-sm py-1 px-3" onclick="window.deleteMachine('${m.id}')">Hapus</button></div></div></div></td>
                         </tr>`).join('')} </tbody> </div>
                 </div>
                 
@@ -1338,7 +1404,7 @@
                                     <td class="max-w-[150px] truncate">${r.notes || '-'}</div></div></div></td>
                                     <td><button class="btn btn-primary text-xs py-1 px-2" onclick="event.stopPropagation(); window.editOEERecord('${r.id}')">Edit</button></td>
                                 </tr>`).join('')}
-                                ${records.length === 0 ? '<tr><td colspan="13" class="text-center py-8">Belum ada data</div></div></div></td>' : ''}
+                                ${records.length === 0 ? '<tr><td colspan="13" class="text-center py-8">Belum ada数据</div></div></div></td>' : ''}
                             </tbody>
                         </table>
                     </div>
@@ -1470,6 +1536,124 @@
         renderApp(); 
     }
     
+    function editKegiatan(index) {
+        const kegiatan = kegiatanList[index];
+        if (!kegiatan) return;
+        
+        const durasi = hitungDurasi(kegiatan.dari, kegiatan.jam);
+        const isLSM = kegiatan.kode === 3;
+        const isLSNM = kegiatan.kode === 9;
+        const isODTWithExceed = [1,5,7,8].includes(kegiatan.kode) && kegiatan.isExceed;
+        
+        let additionalFields = '';
+        
+        if (isLSM) {
+            const isWRRequired = durasi >= CONFIG.WR_REQUIRED_MINUTES;
+            additionalFields = `
+                <div class="mb-3">
+                    <label class="block text-xs mb-1 ${isWRRequired ? 'required-label' : ''}">📋 NO WR</label>
+                    <input type="text" id="edit-no-wr" class="input-field" value="${kegiatan.no_wr || ''}" placeholder="Contoh: WR-001/2024">
+                    ${isWRRequired ? '<p class="text-xs text-red-500 mt-1">⚠️ Wajib diisi karena durasi ≥ 180 menit</p>' : ''}
+                </div>
+                <div class="mb-3">
+                    <label class="block text-xs mb-1">⚠️ DESKRIPSI PROBLEM</label>
+                    <textarea id="edit-problem" class="input-field" rows="2" placeholder="Jelaskan problem yang terjadi...">${kegiatan.problem || ''}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="block text-xs mb-1">🔧 ACTION</label>
+                    <textarea id="edit-action" class="input-field" rows="2" placeholder="Tindakan yang dilakukan...">${kegiatan.action || ''}</textarea>
+                </div>
+            `;
+        } else if (isLSNM) {
+            additionalFields = `
+                <div class="mb-3">
+                    <label class="block text-xs mb-1">⚠️ DESKRIPSI PROBLEM</label>
+                    <textarea id="edit-problem" class="input-field" rows="2" placeholder="Jelaskan problem yang terjadi...">${kegiatan.problem || ''}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="block text-xs mb-1">🔧 ACTION</label>
+                    <textarea id="edit-action" class="input-field" rows="2" placeholder="Tindakan yang dilakukan...">${kegiatan.action || ''}</textarea>
+                </div>
+            `;
+        } else if (isODTWithExceed) {
+            additionalFields = `
+                <div class="mb-3 p-3 bg-orange-50 rounded-lg border border-orange-300">
+                    <p class="text-sm text-orange-700 font-semibold"><i class="fas fa-exclamation-triangle"></i> Kegiatan ini melebihi durasi standar!</p>
+                    <p class="text-xs text-orange-600">Durasi aktual: ${durasi} menit | Standar: ${kegiatan.standarDurasi || '?'} menit | Kelebihan: ${durasi - (kegiatan.standarDurasi || 0)} menit</p>
+                </div>
+                <div class="mb-3">
+                    <label class="block text-xs mb-1">⚠️ DESKRIPSI PROBLEM (Penyebab exceed)</label>
+                    <textarea id="edit-problem" class="input-field" rows="2" placeholder="Jelaskan mengapa melebihi standar...">${kegiatan.problem || ''}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="block text-xs mb-1">🔧 ACTION (Tindakan perbaikan)</label>
+                    <textarea id="edit-action" class="input-field" rows="2" placeholder="Tindakan yang dilakukan...">${kegiatan.action || ''}</textarea>
+                </div>
+            `;
+        }
+        
+        showModal(`
+            <h3 class="text-xl font-bold mb-4">✏️ EDIT KEGIATAN</h3>
+            <div class="mb-3">
+                <label class="block text-xs mb-1">KEGIATAN</label>
+                <input type="text" class="input-field" value="${kegiatan.kegiatan}" readonly disabled>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div><label class="block text-xs mb-1">DARI</label><input type="time" id="edit-dari" class="input-field" value="${kegiatan.dari}"></div>
+                <div><label class="block text-xs mb-1">SAMPAI</label><input type="time" id="edit-sampai" class="input-field" value="${kegiatan.jam}"></div>
+            </div>
+            ${additionalFields}
+            <div class="flex gap-3 mt-4">
+                <button class="btn btn-primary flex-1" onclick="window.saveEditKegiatan(${index})">SIMPAN PERUBAHAN</button>
+                <button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button>
+            </div>
+        `);
+    }
+    
+    function saveEditKegiatan(index) {
+        const kegiatan = kegiatanList[index];
+        if (!kegiatan) return;
+        
+        const dariBaru = document.getElementById('edit-dari')?.value;
+        const sampaiBaru = document.getElementById('edit-sampai')?.value;
+        
+        if (dariBaru) kegiatan.dari = dariBaru;
+        if (sampaiBaru) kegiatan.jam = sampaiBaru;
+        
+        if (kegiatan.kode === 3) {
+            const noWR = document.getElementById('edit-no-wr')?.value;
+            const problem = document.getElementById('edit-problem')?.value;
+            const action = document.getElementById('edit-action')?.value;
+            
+            if (noWR !== undefined) kegiatan.no_wr = toUpper(noWR);
+            if (problem !== undefined) kegiatan.problem = problem;
+            if (action !== undefined) kegiatan.action = action;
+            
+            // Validasi No WR jika durasi >= 180 menit
+            const durasi = hitungDurasi(kegiatan.dari, kegiatan.jam);
+            if (durasi >= CONFIG.WR_REQUIRED_MINUTES && !kegiatan.no_wr) {
+                showToast('No WR wajib diisi karena durasi ≥ 180 menit!', 'error');
+                return;
+            }
+        } else if (kegiatan.kode === 9) {
+            const problem = document.getElementById('edit-problem')?.value;
+            const action = document.getElementById('edit-action')?.value;
+            
+            if (problem !== undefined) kegiatan.problem = problem;
+            if (action !== undefined) kegiatan.action = action;
+        } else if ([1,5,7,8].includes(kegiatan.kode) && kegiatan.isExceed) {
+            const problem = document.getElementById('edit-problem')?.value;
+            const action = document.getElementById('edit-action')?.value;
+            
+            if (problem !== undefined) kegiatan.problem = problem;
+            if (action !== undefined) kegiatan.action = action;
+        }
+        
+        closeModal();
+        renderApp();
+        showToast('Kegiatan berhasil diupdate');
+    }
+    
     function resetForm() { 
         editMode = false; 
         editingRecordId = null; 
@@ -1530,7 +1714,8 @@
             </div>
             <div class="mb-3"><label>KEGIATAN</label><select id="modal-kegiatan-select" class="input-field" onchange="window.updateKegiatanFromSelect()">${options}</select></div>
             <div class="mb-3"><label>NAMA KEGIATAN</label><input type="text" id="modal-kegiatan" class="input-field" readonly></div>
-            <div class="flex gap-3"><button class="btn btn-primary flex-1" onclick="window.tambahKegiatanFromModal()">TAMBAH</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
+            <div id="modal-additional-fields" class="hidden"></div>
+            <div class="flex gap-3 mt-4"><button class="btn btn-primary flex-1" onclick="window.tambahKegiatanFromModal()">TAMBAH</button><button class="btn btn-secondary flex-1" onclick="window.closeModal()">BATAL</button></div>
         `);
     }
     
@@ -1557,7 +1742,8 @@
             return; 
         }
         
-        const [kode] = sel.value.split('_');
+        const [kodeStr] = sel.value.split('_');
+        const kode = parseInt(kodeStr);
         
         if (isTimeGreater(sampai, getShiftEnd())) { 
             showToast('MELEBIHI AKHIR SHIFT', 'error'); 
@@ -1577,16 +1763,52 @@
             } 
         }
         
-        kegiatanList.push({ 
+        const newKegiatan = { 
             dari, 
             jam: sampai, 
-            kode: parseInt(kode), 
-            kegiatan: toUpper(kegiatan) 
-        });
+            kode: kode, 
+            kegiatan: toUpper(kegiatan),
+            problem: '',
+            action: '',
+            no_wr: '',
+            isExceed: false
+        };
         
-        closeModal(); 
-        renderApp(); 
-        showToast('KEGIATAN DITAMBAHKAN');
+        // Untuk kode 3 (Line Stop Mesin), setelah tambah akan muncul modal edit untuk mengisi detail
+        if (kode === 3) {
+            kegiatanList.push(newKegiatan);
+            closeModal();
+            renderApp();
+            // Buka modal edit untuk mengisi No WR, Problem, Action
+            setTimeout(() => {
+                editKegiatan(kegiatanList.length - 1);
+            }, 100);
+        } else {
+            kegiatanList.push(newKegiatan);
+            closeModal();
+            renderApp();
+            showToast('KEGIATAN DITAMBAHKAN');
+            
+            // Untuk ODT (kode 1,5,7,8) cek apakah melebihi standar
+            if ([1,5,7,8].includes(kode)) {
+                const mesin = allMachines.find(m => m.id === selectedMachineId);
+                let standarDurasi = 0;
+                if (mesin?.activities && mesin.activities[kode]) {
+                    const kegiatanData = mesin.activities[kode].find(a => a.nama === newKegiatan.kegiatan);
+                    standarDurasi = kegiatanData?.durasi || 0;
+                }
+                const durasi = hitungDurasi(dari, sampai);
+                if (standarDurasi > 0 && durasi > standarDurasi) {
+                    newKegiatan.isExceed = true;
+                    newKegiatan.exceedDuration = durasi - standarDurasi;
+                    newKegiatan.standarDurasi = standarDurasi;
+                    renderApp();
+                    setTimeout(() => {
+                        editKegiatan(kegiatanList.length - 1);
+                    }, 100);
+                }
+            }
+        }
     }
     
     function simpanData() {
@@ -1623,6 +1845,17 @@
             return; 
         }
         
+        // Validasi No WR untuk Line Stop Mesin dengan durasi >= 180 menit
+        for (const k of kegiatanList) {
+            if (k.kode === 3) {
+                const durasi = hitungDurasi(k.dari, k.jam);
+                if (durasi >= CONFIG.WR_REQUIRED_MINUTES && !k.no_wr) {
+                    showToast(`Line Stop "${k.kegiatan}" (${durasi} menit) wajib diisi No WR!`, 'error');
+                    return;
+                }
+            }
+        }
+        
         const oeeData = hitungAvailAndOEE(kegiatanList, batches, selectedShift, selectedMachineId);
         const resume = hitungResume(kegiatanList, selectedMachineId);
         const mesin = allMachines.find(m => m.id === selectedMachineId);
@@ -1655,25 +1888,30 @@
                     name: k.kegiatan,
                     standardTime: standar,
                     actualTime: actual,
-                    checked: true
+                    checked: true,
+                    problem: k.problem || '',
+                    action: k.action || ''
                 };
             }),
             line_stop_mesin_data: kegiatanList.filter(k => k.kode === 3).map(k => ({
                 item: k.kegiatan,
                 duration: hitungDurasi(k.dari, k.jam),
-                action: '',
-                wr: ''
+                no_wr: k.no_wr || '',
+                problem: k.problem || '',
+                action: k.action || ''
             })),
             line_stop_non_mesin_data: [
                 ...kegiatanList.filter(k => k.kode === 9).map(k => ({
                     item: k.kegiatan,
                     duration: hitungDurasi(k.dari, k.jam),
-                    action: ''
+                    problem: k.problem || '',
+                    action: k.action || ''
                 })),
                 ...resume.odtExceeds.map(ex => ({
                     item: `ODT Exceed - ${ex.item}`,
                     duration: ex.exceed,
-                    action: 'Auto generated from ODT exceed'
+                    problem: ex.problem || '',
+                    action: ex.action || ''
                 }))
             ],
             minor_stop_data: [],
@@ -1893,6 +2131,8 @@
     window.hapusBatch = hapusBatch;
     window.updateBatch = updateBatch;
     window.hapusKegiatan = hapusKegiatan;
+    window.editKegiatan = editKegiatan;
+    window.saveEditKegiatan = saveEditKegiatan;
     window.resetForm = resetForm;
     window.showTambahKegiatanModal = showTambahKegiatanModal;
     window.updateKegiatanFromSelect = updateKegiatanFromSelect;
